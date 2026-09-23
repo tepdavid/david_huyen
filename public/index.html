@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>David 💛 Huyền</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+:root{--bg:#f6efeb;--card:#fff;--ink:#2a1c28;--mute:#65546a;--acc:#b23a5b;--on:#fff;--b1:#ffb3c7;--b2:#b9d4ff;--b3:#ffd9a8;--glass:rgba(255,255,255,.45);--edge:rgba(255,255,255,.75);
+box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171218;--card:#221a24;--ink:#f3e8ec;--mute:#a996a3;--acc:#e5789a;--on:#171218;--b1:#7a2a55;--b2:#2a3f8a;--b3:#6b3a2a;--glass:rgba(255,255,255,.08);--edge:rgba(255,255,255,.2)}}
+:root[data-theme="dark"]{--bg:#171218;--card:#221a24;--ink:#f3e8ec;--mute:#a996a3;--acc:#e5789a;--on:#171218;--b1:#7a2a55;--b2:#2a3f8a;--b3:#6b3a2a;--glass:rgba(255,255,255,.08);--edge:rgba(255,255,255,.2)}
+*{box-sizing:border-box;margin:0}
+body{background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100%}
+button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+button:focus-visible,label:focus-within{outline:2px solid var(--acc);outline-offset:2px}
+header{padding:22px 18px 8px;display:flex;justify-content:space-between;align-items:baseline}
+h1{font:italic 700 30px Georgia,"Times New Roman",serif;color:var(--acc)}
+#n{color:var(--mute);font-size:13px}
+h2{font:600 14px Georgia,serif;color:var(--mute);padding:18px 18px 8px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:0 3px}
+.tile{position:relative;aspect-ratio:1;background:var(--card);overflow:hidden}
+.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile b{position:absolute;right:6px;bottom:4px;color:#fff;text-shadow:0 1px 4px #000a;font-size:14px}
+.empty,#st{color:var(--mute);text-align:center;padding:40px 24px}
+#st{padding:6px 18px;font-size:12px}
+.fab{position:fixed;right:18px;bottom:calc(20px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;background:var(--acc);color:var(--on);display:grid;place-items:center;font-size:30px;cursor:pointer;box-shadow:0 6px 18px #0004}
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(12px + env(safe-area-inset-top,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13px;z-index:20}
+.v{position:fixed;inset:0;background:#000;z-index:10;display:flex;flex-direction:column;justify-content:center;color:#fff}
+.v[hidden],#toast[hidden]{display:none}
+#m{flex:1;display:grid;place-items:center;min-height:0}
+#m img,#m video{max-width:100%;max-height:100%}
+.bar{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:0;right:0;display:flex;justify-content:space-between;padding:0 12px}
+.bar button,.nav{width:42px;height:42px;border-radius:50%;background:#0009;font-size:18px;color:#fff}
+.nav{position:absolute;top:50%}#pv{left:8px}#nx{right:8px}
+#cap{text-align:center;padding:10px 0 calc(14px + env(safe-area-inset-bottom,0px));font-size:13px;color:#ccc}
+#top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding:4px 12px 8px;border-bottom:1px solid #8883}
+.seg{display:flex;gap:4px;background:var(--card);border-radius:999px;padding:3px;margin-bottom:6px}
+.seg button{flex:1;padding:8px;border-radius:999px;font-size:14px;color:var(--mute)}
+.seg .on{background:var(--acc);color:var(--on)}
+.seg small{opacity:.8;margin-left:4px}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:3px 0;scrollbar-width:none}
+.chip{flex:none;padding:6px 14px;border-radius:999px;background:var(--card);font-size:13px;color:var(--mute)}
+.chip.on{background:var(--acc);color:var(--on)}
+.chip small{opacity:.75;margin-left:5px}
+.yr{font:italic 700 28px Georgia,serif;color:var(--acc);padding:20px 18px 0}
+h2[id],.yr{scroll-margin-top:215px}
+/* Liquid glass */
+.bg{position:fixed;inset:0;z-index:-1;overflow:hidden;background:var(--bg)}
+.bg i{position:absolute;width:62vmax;height:62vmax;border-radius:50%;filter:blur(70px);opacity:.8;animation:drift 24s ease-in-out infinite alternate}
+.bg i:nth-child(1){background:var(--b1);top:-18vmax;left:-18vmax}
+.bg i:nth-child(2){background:var(--b2);top:22%;right:-24vmax;animation-delay:-8s}
+.bg i:nth-child(3){background:var(--b3);bottom:-22vmax;left:8%;animation-delay:-16s}
+@keyframes drift{to{transform:translate(9vmax,7vmax) scale(1.18)}}
+@media(prefers-reduced-motion:reduce){.bg i{animation:none}}
+#top,.seg,.chip,#toast,.bar button,.nav{-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%)}
+#top{background:var(--glass);border-bottom:1px solid var(--edge)}
+.seg,.chip{background:var(--glass);border:1px solid var(--edge);box-shadow:inset 0 1px 0 var(--edge)}
+.chip.on,.seg .on{background:var(--acc);border-color:transparent;box-shadow:inset 0 1px 0 #fff6,0 4px 14px #0003}
+.grid{gap:8px;padding:0 12px}
+.tile{border-radius:16px;border:1px solid var(--edge);box-shadow:0 8px 22px #0002}
+.fab{background:linear-gradient(145deg,color-mix(in srgb,var(--acc) 82%,#fff),var(--acc));border:1px solid var(--edge);box-shadow:inset 0 1px 0 #fff8,0 10px 26px #0004}
+#toast{background:var(--glass);color:var(--ink);border:1px solid var(--edge)}
+.v{background:rgba(0,0,0,.82);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
+.bar button,.nav{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28)}
+.chip.empty{opacity:.5}
+.chips.mo{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;overflow:visible}
+.chips.mo .chip{padding:5px 0;font-size:12px;text-align:center}
+.none{color:var(--mute);font-size:13px;padding:2px 18px 6px}
+h2 small{margin-left:8px;font:12px system-ui,sans-serif;opacity:.75}
+.sheet{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.4);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center}
+.sheet[hidden]{display:none}
+.card{width:100%;max-width:430px;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));border-radius:24px 24px 0 0;background:color-mix(in srgb,var(--card) 82%,transparent);border:1px solid var(--edge);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%)}
+.card h3{font:600 20px Georgia,serif;color:var(--ink);margin-bottom:10px}
+.opt{display:flex;gap:10px;align-items:center;padding:8px 0}
+.pick{display:flex;gap:8px;margin:2px 0 8px}
+select{flex:1;font:inherit;color:var(--ink);background:var(--glass);border:1px solid var(--edge);border-radius:12px;padding:10px}
+.note{color:var(--mute);font-size:12px;margin-bottom:14px}
+.acts{display:flex;gap:10px}.acts button{flex:1;padding:12px;border-radius:999px;background:var(--glass);border:1px solid var(--edge)}
+.acts .go{background:var(--acc);color:var(--on);border-color:transparent;font-weight:600}
+</style>
+</head>
+<body>
+<div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
+<header><h1 id="t">Us</h1><span id="n"></span></header>
+<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav></div>
+<div id="st"></div>
+<main id="g"></main>
+<label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
+<div id="toast" hidden></div>
+<div class="sheet" id="sheet" hidden><div class="card" role="dialog" aria-labelledby="shT">
+  <h3 id="shT">Add memories</h3>
+  <label class="opt"><input type="radio" name="dm" value="own" checked> Use each file's own date</label>
+  <label class="opt"><input type="radio" name="dm" value="pick"> Put them all in this month:</label>
+  <div class="pick"><select id="mSel" aria-label="Month"></select><select id="ySel" aria-label="Year"></select></div>
+  <p class="note">Files without a date use today's date. With a chosen month, each file keeps its day of the month when it fits.</p>
+  <div class="acts"><button id="shC">Cancel</button><button id="shU" class="go">Upload</button></div>
+</div></div>
+<div class="v" id="v" hidden>
+  <div class="bar"><button id="x" aria-label="Close">✕</button><button id="del" aria-label="Delete">🗑</button></div>
+  <div id="m"></div><button class="nav" id="pv" aria-label="Previous">‹</button><button class="nav" id="nx" aria-label="Next">›</button><p id="cap"></p>
+</div>
+<script>
+const TITLE = "David 💛 Huyền"; // change to your own title
+const tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+const $ = id => document.getElementById(id);
+const live = () => tg && tg.initData;
+let all = [], items = [], idx = 0, tt, cat = "image";
+$("t").textContent = TITLE;
+
+const api = async (action, body) => {
+  const r = await fetch("/api/media?action=" + action, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "tma " + tg.initData }, body: JSON.stringify(body || {}) });
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+};
+const put = async (u, b, t) => {
+  let r;
+  try { r = await fetch(u, { method: "PUT", headers: { "Content-Type": t }, body: b }); }
+  catch { throw new Error("Storage blocked the upload. The R2 bucket's CORS rule probably doesn't list this app's web address."); }
+  if (!r.ok) throw new Error("Storage refused the file (error " + r.status + "). Check the R2 API token has Object Read & Write for this bucket.");
+};
+const toast = m => { const e = $("toast"); e.textContent = m; e.hidden = false; clearTimeout(tt); tt = setTimeout(() => e.hidden = true, 2500); };
+const fmt = (d, o) => new Date(d).toLocaleDateString(undefined, o);
+
+const demo = () => Array.from({ length: 12 }, (_, i) => {
+  const e = ["💛","🌅","🍜","🌊","🎬","🌸"][i % 6], c = ["#e5789a","#f0a35e","#7cb7a3","#6f9ad4","#a487c9","#d97a7a"][i % 6];
+  const s = "data:image/svg+xml," + encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="400" height="400"><rect width="400" height="400" fill="${c}"/><text x="200" y="250" font-size="150" text-anchor="middle">${e}</text></svg>`);
+  return { key: "d" + i, url: s, thumb: s, type: i % 4 === 3 ? "video" : "image", date: new Date(2026, 7, 20).getTime() - i * 130 * 864e5 };
+});
+
+function apply() {
+  items = all.filter(i => i.type === cat);
+  document.querySelectorAll("#seg button").forEach(b => b.classList.toggle("on", b.dataset.c === cat));
+  $("cp").textContent = all.filter(i => i.type === "image").length;
+  $("cv").textContent = all.filter(i => i.type === "video").length;
+  draw();
+}
+$("seg").onclick = e => { const b = e.target.closest("button"); if (!b) return; cat = b.dataset.c; apply(); scrollTo(0, 0); };
+
+const tile = i => {
+  const it = items[i], src = it.thumb || (it.type === "image" ? it.url : "");
+  return `<button class="tile" data-i="${i}" aria-label="Open ${it.type} from ${fmt(it.date)}">${src ? `<img loading="lazy" src="${src}" alt="">` : ""}${it.type === "video" ? "<b>▶</b>" : ""}</button>`;
+};
+
+// Timeline: every month of every year is shown, whether or not it has memories yet
+let selY = null;
+const RANGE = { from: [2022, 7], to: [2026, 7] }; // August 2022 to August 2026 (months are 0-based)
+// Flower and scenery icons, assigned by a fixed formula so each month and year always keeps the same one
+const ICONS = ["🌸","🌷","🌼","🌻","🌹","🌺","💐","🏞️","🌅","🌄","🌊","🏔️","🌈","🍁","🌾","🌴"];
+const mi = (y, m) => ICONS[(y * 7 + m * 5 + 3) % ICONS.length];
+const yi = y => ICONS[(y * 11 + 2) % ICONS.length];
+const mname = (y, m, long) => new Date(y, m, 1).toLocaleDateString(undefined, long ? { month: "long", year: "numeric" } : { month: "short" });
+const mlong = (y, m) => new Date(y, m, 1).toLocaleDateString(undefined, { month: "long" });
+
+function calendar() {
+  const ys = {}, ms = {};
+  items.forEach(it => { const d = new Date(it.date), y = d.getFullYear(), m = d.getMonth(); (ys[y] = ys[y] || {})[m] = (ys[y][m] || 0) + 1; });
+  for (let y = RANGE.from[0]; y <= RANGE.to[0]; y++)
+    for (let m = y === RANGE.from[0] ? RANGE.from[1] : 0; m <= (y === RANGE.to[0] ? RANGE.to[1] : 11); m++) (ms[y] = ms[y] || new Set()).add(m);
+  Object.keys(ys).forEach(y => Object.keys(ys[y]).forEach(m => (ms[y] = ms[y] || new Set()).add(+m)));
+  return { ys, ms };
+}
+
+function draw() {
+  $("n").textContent = all.length + (all.length === 1 ? " memory" : " memories");
+  const { ms } = calendar(), what = cat === "video" ? "videos" : "photos", by = {};
+  items.forEach((it, i) => { const d = new Date(it.date), k = d.getFullYear() + "-" + d.getMonth(); (by[k] = by[k] || []).push(i); });
+  let h = items.length ? "" : `<p class="empty">No ${what} yet. Tap + to add some.</p>`;
+  Object.keys(ms).sort((a, b) => b - a).forEach(y => {
+    h += `<h3 class="yr" id="y-${y}">${yi(+y)} ${y}</h3>`;
+    [...ms[y]].sort((a, b) => b - a).forEach(m => {
+      const list = by[y + "-" + m] || [];
+      h += `<h2 id="m-${y}-${m}">${mi(+y, m)} ${mlong(+y, m)}${list.length ? `<small>${list.length}</small>` : ""}</h2>`;
+      h += list.length ? `<div class="grid">${list.map(tile).join("")}</div>` : `<p class="none">No ${what} yet</p>`;
+    });
+  });
+  $("g").innerHTML = h;
+  timeline(); spy();
+}
+
+function timeline() {
+  const { ys, ms } = calendar();
+  const years = Object.keys(ms).sort((a, b) => b - a);
+  if (!ms[selY]) selY = +years[0];
+  const months = [...ms[selY]].sort((a, b) => a - b); // January to December
+  const n = y => Object.values(ys[y] || {}).reduce((a, b) => a + b, 0);
+  $("tl").innerHTML = `<div class="chips">${years.map(y => `<button class="chip ${y == selY ? "on" : ""} ${n(y) ? "" : "empty"}" data-y="${y}">${yi(+y)} ${y}</button>`).join("")}</div>` +
+    `<div class="chips mo">${months.map(m => `<button class="chip ${(ys[selY] || {})[m] ? "" : "empty"}" data-m="${selY}-${m}">${mi(selY, m)} ${mname(selY, m)}</button>`).join("")}</div>`;
+}
+function spy() {
+  let c = null;
+  for (const h of document.querySelectorAll("h2[id]")) { if (h.getBoundingClientRect().top <= 235) c = h; else break; }
+  if (!c) c = document.querySelector("h2[id]");
+  if (!c) return;
+  const [, y, m] = c.id.split("-");
+  if (+y !== selY) { selY = +y; timeline(); }
+  document.querySelectorAll("[data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === y + "-" + m));
+}
+addEventListener("scroll", spy, { passive: true });
+$("tl").onclick = e => {
+  const b = e.target.closest(".chip"); if (!b) return;
+  const what = cat === "video" ? "videos" : "photos";
+  if (b.dataset.y) { selY = +b.dataset.y; timeline(); const t = document.getElementById("y-" + selY); if (t) t.scrollIntoView({ behavior: "smooth" }); else toast(`No ${what} in ${selY} yet`); }
+  else if (b.dataset.m) { const [y, m] = b.dataset.m.split("-"); const t = document.getElementById("m-" + b.dataset.m); if (t) t.scrollIntoView({ behavior: "smooth" }); else toast(`No ${what} in ${mname(+y, +m, true)} yet`); }
+};
+async function load() {
+  if (!live()) { all = demo(); apply(); $("st").textContent = "Preview mode. Open the app inside Telegram to see your real album."; return; }
+  try { all = (await api("list")).items; apply(); }
+  catch (e) { $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? "This album is private." : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
+}
+
+function show(i) {
+  idx = (i + items.length) % items.length;
+  const it = items[idx];
+  $("m").innerHTML = it.type === "video" && !it.url.startsWith("data:") ? `<video src="${it.url}" controls playsinline autoplay></video>` : `<img src="${it.url}" alt="">`;
+  $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  $("v").hidden = false;
+}
+const close = () => { $("v").hidden = true; $("m").innerHTML = ""; };
+$("g").onclick = e => { const t = e.target.closest(".tile"); if (t) show(+t.dataset.i); };
+$("x").onclick = close;
+$("pv").onclick = () => show(idx - 1);
+$("nx").onclick = () => show(idx + 1);
+document.onkeydown = e => { if ($("v").hidden) return; if (e.key === "Escape") close(); if (e.key === "ArrowLeft") show(idx - 1); if (e.key === "ArrowRight") show(idx + 1); };
+let sx = 0;
+$("m").ontouchstart = e => sx = e.touches[0].clientX;
+$("m").ontouchend = e => { const d = e.changedTouches[0].clientX - sx; if (Math.abs(d) > 60) show(idx + (d < 0 ? 1 : -1)); };
+$("del").onclick = async () => {
+  if (!live() || !confirm("Delete this memory for both of you?")) return;
+  try { await api("delete", { key: items[idx].key }); close(); toast("Deleted"); load(); } catch { toast("Couldn't delete"); }
+};
+
+function makeThumb(f) {
+  return new Promise(res => {
+    const u = URL.createObjectURL(f), vid = f.type.startsWith("video"), el = document.createElement(vid ? "video" : "img");
+    const done = () => {
+      const w = el.videoWidth || el.naturalWidth, h = el.videoHeight || el.naturalHeight, r = Math.min(1, 400 / w), c = document.createElement("canvas");
+      c.width = w * r; c.height = h * r; c.getContext("2d").drawImage(el, 0, 0, c.width, c.height);
+      URL.revokeObjectURL(u); c.toBlob(b => res(b), "image/jpeg", .8);
+    };
+    el.onerror = () => res(null);
+    if (vid) { el.muted = true; el.preload = "metadata"; el.onloadeddata = () => { el.currentTime = .1; }; el.onseeked = done; } else el.onload = done;
+    el.src = u;
+  });
+}
+const shift = (ms, w) => { const d = new Date(ms || Date.now()); d.setFullYear(w.y, w.m, Math.min(d.getDate(), new Date(w.y, w.m + 1, 0).getDate())); return d.getTime(); };
+let pending = [];
+$("f").onchange = e => {
+  pending = [...e.target.files]; e.target.value = "";
+  if (!pending.length) return;
+  $("shT").textContent = `Add ${pending.length} ${pending.length === 1 ? "file" : "files"}`;
+  $("ySel").innerHTML = Object.keys(calendar().ms).sort((a, b) => b - a).map(y => `<option value="${y}">${y}</option>`).join("");
+  $("mSel").innerHTML = Array.from({ length: 12 }, (_, m) => `<option value="${m}">${mlong(2000, m)}</option>`).join("");
+  const cur = document.querySelector("[data-m].on");
+  $("ySel").value = selY; $("mSel").value = cur ? cur.dataset.m.split("-")[1] : 0;
+  document.querySelector('input[name=dm][value=own]').checked = true;
+  $("sheet").hidden = false;
+};
+$("mSel").onchange = $("ySel").onchange = () => { document.querySelector('input[name=dm][value=pick]').checked = true; };
+$("shC").onclick = () => { $("sheet").hidden = true; pending = []; };
+$("shU").onclick = () => {
+  $("sheet").hidden = true;
+  if (!live()) { toast("Preview mode: uploads work inside Telegram"); pending = []; return; }
+  const pick = document.querySelector("input[name=dm]:checked").value === "pick";
+  upload(pending, pick ? { y: +$("ySel").value, m: +$("mSel").value } : null); pending = [];
+};
+const guessType = n => ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", heic: "image/heic", heif: "image/heif",
+  mp4: "video/mp4", mov: "video/quicktime", m4v: "video/x-m4v", webm: "video/webm", "3gp": "video/3gpp", mkv: "video/x-matroska", avi: "video/x-msvideo" })[(n.split(".").pop() || "").toLowerCase()] || "";
+const kind = f => f.type || guessType(f.name);
+async function why(e) {
+  const m = e.message;
+  if (m === "500") {
+    try {
+      const c = await api("check"), miss = Object.keys(c.env).filter(k => !c.env[k]);
+      if (miss.length) return "These settings are missing in Vercel: " + miss.join(", ") + ". Add them, then redeploy.";
+      return c.storage === "ok" ? "The server hit an error. Check the function logs in Vercel." : "Storage error: " + c.storage;
+    } catch { return "The server couldn't start or reach storage. Check the function logs in Vercel."; }
+  }
+  return { "401": "Your Telegram login expired. Close and reopen the app.", "403": "This Telegram account isn't on the allowed list.",
+    "400": "The server rejected the file (type or size).", "404": "The upload service isn't deployed (the /api folder is missing)." }[m] || (m === "Failed to fetch" ? "Couldn't reach the server. Check your connection." : m);
+}
+async function upload(files, when) {
+  let bad = 0, first = null;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i], type = kind(f); toast(`Uploading ${i + 1} of ${files.length}…`);
+    try {
+      if (!/^(image|video)\//.test(type)) throw new Error("This file type isn't supported: " + f.name);
+      const th = await makeThumb(f);
+      const r = await api("upload", { name: f.name, type, size: f.size, lastModified: when ? shift(f.lastModified, when) : f.lastModified, thumb: !!th });
+      await put(r.url, f, type);
+      if (th && r.thumbUrl) { try { await put(r.thumbUrl, th, "image/jpeg"); } catch {} }
+    } catch (e) { bad++; first = first || e; }
+  }
+  if (files.every(f => kind(f).startsWith("video"))) cat = "video"; else if (files.every(f => kind(f).startsWith("image"))) cat = "image";
+  if (bad) { $("st").textContent = `Couldn't upload ${bad} of ${files.length}. ${await why(first)}`; toast(`${bad} file${bad > 1 ? "s" : ""} couldn't upload`); }
+  else { $("st").textContent = ""; toast("Added to your album"); }
+  await load();
+  if (when) { selY = when.y; timeline(); const t = document.getElementById(`m-${when.y}-${when.m}`); if (t) t.scrollIntoView({ behavior: "smooth" }); }
+}
+load();
+</script>
+</body>
+</html>
