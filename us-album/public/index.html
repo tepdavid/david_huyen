@@ -111,7 +111,7 @@ $("t").textContent = TITLE;
 
 const api = async (action, body) => {
   const r = await fetch("/api/media?action=" + action, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "tma " + tg.initData }, body: JSON.stringify(body || {}) });
-  if (!r.ok) { let j = {}; try { j = await r.json(); } catch {} const e = new Error(String(r.status)); e.reason = j.reason; throw e; }
+  if (!r.ok) { let j = {}; try { j = await r.json(); } catch {} const e = new Error(String(r.status)); e.reason = j.reason; e.age = j.age; throw e; }
   return r.json();
 };
 const put = async (u, b, t) => {
@@ -270,11 +270,15 @@ const guessType = n => ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png
 const kind = f => f.type || guessType(f.name);
 async function why(e) {
   const m = e.message, id = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user || {}).id;
-  if (m === "401") return {
-    no_initdata: "Open the album from your bot's Mini App link (t.me/YOUR_BOT/APP_NAME) or its menu button in Telegram, not from a browser.",
-    no_token: "BOT_TOKEN isn't set in Vercel. Add it, then redeploy.",
-    bad_signature: "The BOT_TOKEN in Vercel doesn't match the bot that opened this app. Copy the token of this same bot from @BotFather again (no spaces or quotes), then redeploy."
-  }[e.reason] || "Your Telegram login expired. Close and reopen the app.";
+  if (m === "401") {
+    const R = {
+      no_initdata: "Open the album from your bot's Mini App link (t.me/YOUR_BOT/APP_NAME) or its menu button in Telegram, not from a browser.",
+      no_token: "BOT_TOKEN isn't set in Vercel. Add it, then redeploy.",
+      bad_signature: "The BOT_TOKEN in Vercel doesn't match the bot that opened this app. Copy the token of this same bot from @BotFather again (no spaces or quotes), then redeploy.",
+      expired: "Telegram's login data is too old. Fully close the app and open it again from the bot."
+    };
+    return (R[e.reason] || "The server didn't say why, so it is probably still running an older version of the code. Redeploy the latest files.") + ` (code: ${e.reason || "none"}${e.age ? ", " + Math.round(e.age / 3600) + "h old" : ""})`;
+  }
   if (m === "403") return "This album is private." + (id ? ` Your Telegram ID is ${id}. The owner can add it to ALLOWED_USER_IDS in Vercel.` : "");
   if (m === "500") {
     try {

@@ -25,7 +25,8 @@ function verify(initData) {
   const calc = crypto.createHmac("sha256", secret).update(check).digest("hex");
   const a = Buffer.from(calc), b = Buffer.from(hash);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { reason: "bad_signature" };
-  if (Date.now() / 1000 - Number(p.get("auth_date")) > 86400) return { reason: "expired" };
+  const age = Date.now() / 1000 - Number(p.get("auth_date"));
+  if (age > 604800) return { reason: "expired", age }; // 7 days: only the two allowed accounts can pass anyway
   try { return { user: JSON.parse(p.get("user")) }; } catch { return { reason: "no_initdata" }; }
 }
 
@@ -33,10 +34,16 @@ const sign = (Key) => getSignedUrl(s3, new GetObjectCommand({ Bucket, Key }), { 
 const put = (Key, ContentType) => getSignedUrl(s3, new PutObjectCommand({ Bucket, Key, ContentType }), { expiresIn: 900 });
 
 module.exports = async (req, res) => {
+  if (req.query.action === "ping") { // open /api/media?action=ping in a browser to confirm what is deployed
+    const tk = (E.BOT_TOKEN || "").trim().replace(/^["']+|["']+$/g, "");
+    return res.json({ version: 3, hasToken: !!tk, botId: tk.split(":")[0] || null, tokenLength: tk.length,
+      allowedIds: (E.ALLOWED_USER_IDS || "").split(",").filter((s) => s.trim()).length,
+      hasStorage: !!(E.R2_ACCOUNT_ID && E.R2_ACCESS_KEY_ID && E.R2_SECRET_ACCESS_KEY && E.R2_BUCKET) });
+  }
   if (req.method !== "POST") return res.status(405).end();
   const h = req.headers.authorization || "";
   const v = h.startsWith("tma ") ? verify(h.slice(4)) : { reason: "no_initdata" };
-  if (!v.user) return res.status(401).json({ error: "unauthorized", reason: v.reason });
+  if (!v.user) return res.status(401).json({ error: "unauthorized", reason: v.reason, age: v.age });
   const user = v.user;
   const allowed = (E.ALLOWED_USER_IDS || "").split(",").map((s) => s.trim().replace(/["']/g, "")).filter(Boolean);
   if (!allowed.includes(String(user.id))) return res.status(403).json({ error: "private" });
