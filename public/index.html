@@ -111,13 +111,13 @@ $("t").textContent = TITLE;
 
 const api = async (action, body) => {
   const r = await fetch("/api/media?action=" + action, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "tma " + tg.initData }, body: JSON.stringify(body || {}) });
-  if (!r.ok) throw new Error(r.status);
+  if (!r.ok) { let j = {}; try { j = await r.json(); } catch {} const e = new Error(String(r.status)); e.reason = j.reason; e.age = j.age; throw e; }
   return r.json();
 };
 const put = async (u, b, t) => {
   let r;
   try { r = await fetch(u, { method: "PUT", headers: { "Content-Type": t }, body: b }); }
-  catch { throw new Error("Storage blocked the upload. The R2 bucket's CORS rule probably doesn't list this app's web address."); }
+  catch { throw new Error("Storage blocked the upload. Add this exact address to the R2 bucket's CORS rule (AllowedOrigins): " + location.origin); }
   if (!r.ok) throw new Error("Storage refused the file (error " + r.status + "). Check the R2 API token has Object Read & Write for this bucket.");
 };
 const toast = m => { const e = $("toast"); e.textContent = m; e.hidden = false; clearTimeout(tt); tt = setTimeout(() => e.hidden = true, 2500); };
@@ -207,7 +207,7 @@ $("tl").onclick = e => {
 async function load() {
   if (!live()) { all = demo(); apply(); $("st").textContent = "Preview mode. Open the app inside Telegram to see your real album."; return; }
   try { all = (await api("list")).items; apply(); }
-  catch (e) { $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? "This album is private." : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
+  catch (e) { $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
 }
 
 function show(i) {
@@ -269,7 +269,23 @@ const guessType = n => ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png
   mp4: "video/mp4", mov: "video/quicktime", m4v: "video/x-m4v", webm: "video/webm", "3gp": "video/3gpp", mkv: "video/x-matroska", avi: "video/x-msvideo" })[(n.split(".").pop() || "").toLowerCase()] || "";
 const kind = f => f.type || guessType(f.name);
 async function why(e) {
-  const m = e.message;
+  const m = e.message, id = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user || {}).id;
+  if (m === "401") {
+    const R = {
+      no_initdata: "Open the album from your bot's Mini App link (t.me/YOUR_BOT/APP_NAME) or its menu button in Telegram, not from a browser.",
+      no_token: "BOT_TOKEN isn't set in Vercel. Add it, then redeploy.",
+      bad_signature: "The BOT_TOKEN in Vercel doesn't match the bot that opened this app. Copy the token of this same bot from @BotFather again (no spaces or quotes), then redeploy.",
+      expired: "Telegram's login data is too old. Fully close the app and open it again from the bot."
+    };
+    return (R[e.reason] || "The server didn't say why, so it is probably still running an older version of the code. Redeploy the latest files.") + ` (code: ${e.reason || "none"}${e.age ? ", " + Math.round(e.age / 3600) + "h old" : ""})`;
+  }
+  if (m === "403") return "This album is private." + (id ? ` Your Telegram ID is ${id}. The owner can add it to ALLOWED_USER_IDS in Vercel.` : "");
+  if (m.startsWith("Storage blocked")) { // a wrong account ID or bucket name looks the same as a CORS problem, so ask the server
+    try {
+      const c = await api("check");
+      if (c.storage !== "ok") return "The server can't reach your R2 bucket (" + c.storage + "). Check R2_ACCOUNT_ID, R2_BUCKET and the API token in Vercel, then redeploy.";
+    } catch {}
+  }
   if (m === "500") {
     try {
       const c = await api("check"), miss = Object.keys(c.env).filter(k => !c.env[k]);

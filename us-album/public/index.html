@@ -280,6 +280,12 @@ async function why(e) {
     return (R[e.reason] || "The server didn't say why, so it is probably still running an older version of the code. Redeploy the latest files.") + ` (code: ${e.reason || "none"}${e.age ? ", " + Math.round(e.age / 3600) + "h old" : ""})`;
   }
   if (m === "403") return "This album is private." + (id ? ` Your Telegram ID is ${id}. The owner can add it to ALLOWED_USER_IDS in Vercel.` : "");
+  if (m.startsWith("Storage blocked")) { // a wrong account ID or bucket name looks the same as a CORS problem, so ask the server
+    try {
+      const c = await api("check");
+      if (c.storage !== "ok") return "The server can't reach your R2 bucket (" + c.storage + "). Check R2_ACCOUNT_ID, R2_BUCKET and the API token in Vercel, then redeploy.";
+    } catch {}
+  }
   if (m === "500") {
     try {
       const c = await api("check"), miss = Object.keys(c.env).filter(k => !c.env[k]);
