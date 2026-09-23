@@ -38,6 +38,13 @@ module.exports = async (req, res) => {
 
   const b = req.body || {};
   try {
+    if (req.query.action === "check") { // reports which settings are missing and whether storage is reachable
+      const env = Object.fromEntries(["BOT_TOKEN", "ALLOWED_USER_IDS", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"].map((k) => [k, !!E[k]]));
+      let storage = "ok";
+      try { await s3.send(new ListObjectsV2Command({ Bucket, MaxKeys: 1 })); } catch (e) { storage = `${e.name}: ${e.message}`; }
+      return res.json({ env, storage });
+    }
+
     if (req.query.action === "list") {
       const all = []; let tok;
       do {

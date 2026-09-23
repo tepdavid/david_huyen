@@ -16,7 +16,7 @@ Each of you messages @userinfobot. It replies with a numeric id.
 [{
   "AllowedOrigins": ["https://YOUR-PROJECT.vercel.app"],
   "AllowedMethods": ["GET", "PUT"],
-  "AllowedHeaders": ["Content-Type"],
+  "AllowedHeaders": ["*"],
   "MaxAgeSeconds": 3600
 }]
 ```

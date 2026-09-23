@@ -114,7 +114,12 @@ const api = async (action, body) => {
   if (!r.ok) throw new Error(r.status);
   return r.json();
 };
-const put = async (u, b, t) => { const r = await fetch(u, { method: "PUT", headers: { "Content-Type": t }, body: b }); if (!r.ok) throw new Error("put"); };
+const put = async (u, b, t) => {
+  let r;
+  try { r = await fetch(u, { method: "PUT", headers: { "Content-Type": t }, body: b }); }
+  catch { throw new Error("Storage blocked the upload. The R2 bucket's CORS rule probably doesn't list this app's web address."); }
+  if (!r.ok) throw new Error("Storage refused the file (error " + r.status + "). Check the R2 API token has Object Read & Write for this bucket.");
+};
 const toast = m => { const e = $("toast"); e.textContent = m; e.hidden = false; clearTimeout(tt); tt = setTimeout(() => e.hidden = true, 2500); };
 const fmt = (d, o) => new Date(d).toLocaleDateString(undefined, o);
 
@@ -260,19 +265,36 @@ $("shU").onclick = () => {
   const pick = document.querySelector("input[name=dm]:checked").value === "pick";
   upload(pending, pick ? { y: +$("ySel").value, m: +$("mSel").value } : null); pending = [];
 };
-async function upload(files, when) {
-  let bad = 0;
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i]; toast(`Uploading ${i + 1} of ${files.length}…`);
+const guessType = n => ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", heic: "image/heic", heif: "image/heif",
+  mp4: "video/mp4", mov: "video/quicktime", m4v: "video/x-m4v", webm: "video/webm", "3gp": "video/3gpp", mkv: "video/x-matroska", avi: "video/x-msvideo" })[(n.split(".").pop() || "").toLowerCase()] || "";
+const kind = f => f.type || guessType(f.name);
+async function why(e) {
+  const m = e.message;
+  if (m === "500") {
     try {
-      const th = await makeThumb(f);
-      const r = await api("upload", { name: f.name, type: f.type, size: f.size, lastModified: when ? shift(f.lastModified, when) : f.lastModified, thumb: !!th });
-      await put(r.url, f, f.type);
-      if (th && r.thumbUrl) await put(r.thumbUrl, th, "image/jpeg");
-    } catch { bad++; }
+      const c = await api("check"), miss = Object.keys(c.env).filter(k => !c.env[k]);
+      if (miss.length) return "These settings are missing in Vercel: " + miss.join(", ") + ". Add them, then redeploy.";
+      return c.storage === "ok" ? "The server hit an error. Check the function logs in Vercel." : "Storage error: " + c.storage;
+    } catch { return "The server couldn't start or reach storage. Check the function logs in Vercel."; }
   }
-  if (files.every(f => f.type.startsWith("video"))) cat = "video"; else if (files.every(f => f.type.startsWith("image"))) cat = "image";
-  toast(bad ? `${bad} file${bad > 1 ? "s" : ""} couldn't upload` : "Added to your album");
+  return { "401": "Your Telegram login expired. Close and reopen the app.", "403": "This Telegram account isn't on the allowed list.",
+    "400": "The server rejected the file (type or size).", "404": "The upload service isn't deployed (the /api folder is missing)." }[m] || (m === "Failed to fetch" ? "Couldn't reach the server. Check your connection." : m);
+}
+async function upload(files, when) {
+  let bad = 0, first = null;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i], type = kind(f); toast(`Uploading ${i + 1} of ${files.length}…`);
+    try {
+      if (!/^(image|video)\//.test(type)) throw new Error("This file type isn't supported: " + f.name);
+      const th = await makeThumb(f);
+      const r = await api("upload", { name: f.name, type, size: f.size, lastModified: when ? shift(f.lastModified, when) : f.lastModified, thumb: !!th });
+      await put(r.url, f, type);
+      if (th && r.thumbUrl) { try { await put(r.thumbUrl, th, "image/jpeg"); } catch {} }
+    } catch (e) { bad++; first = first || e; }
+  }
+  if (files.every(f => kind(f).startsWith("video"))) cat = "video"; else if (files.every(f => kind(f).startsWith("image"))) cat = "image";
+  if (bad) { $("st").textContent = `Couldn't upload ${bad} of ${files.length}. ${await why(first)}`; toast(`${bad} file${bad > 1 ? "s" : ""} couldn't upload`); }
+  else { $("st").textContent = ""; toast("Added to your album"); }
   await load();
   if (when) { selY = when.y; timeline(); const t = document.getElementById(`m-${when.y}-${when.m}`); if (t) t.scrollIntoView({ behavior: "smooth" }); }
 }
