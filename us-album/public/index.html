@@ -117,7 +117,7 @@ const api = async (action, body) => {
 const put = async (u, b, t) => {
   let r;
   try { r = await fetch(u, { method: "PUT", headers: { "Content-Type": t }, body: b }); }
-  catch { throw new Error("Storage blocked the upload. The R2 bucket's CORS rule probably doesn't list this app's web address."); }
+  catch { throw new Error("Storage blocked the upload. Add this exact address to the R2 bucket's CORS rule (AllowedOrigins): " + location.origin); }
   if (!r.ok) throw new Error("Storage refused the file (error " + r.status + "). Check the R2 API token has Object Read & Write for this bucket.");
 };
 const toast = m => { const e = $("toast"); e.textContent = m; e.hidden = false; clearTimeout(tt); tt = setTimeout(() => e.hidden = true, 2500); };
