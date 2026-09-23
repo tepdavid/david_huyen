@@ -68,6 +68,16 @@ h2[id],.yr{scroll-margin-top:215px}
 .chips.mo .chip{padding:5px 0;font-size:12px;text-align:center}
 .none{color:var(--mute);font-size:13px;padding:2px 18px 6px}
 h2 small{margin-left:8px;font:12px system-ui,sans-serif;opacity:.75}
+.sheet{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.4);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center}
+.sheet[hidden]{display:none}
+.card{width:100%;max-width:430px;padding:20px 20px calc(20px + env(safe-area-inset-bottom,0px));border-radius:24px 24px 0 0;background:color-mix(in srgb,var(--card) 82%,transparent);border:1px solid var(--edge);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%)}
+.card h3{font:600 20px Georgia,serif;color:var(--ink);margin-bottom:10px}
+.opt{display:flex;gap:10px;align-items:center;padding:8px 0}
+.pick{display:flex;gap:8px;margin:2px 0 8px}
+select{flex:1;font:inherit;color:var(--ink);background:var(--glass);border:1px solid var(--edge);border-radius:12px;padding:10px}
+.note{color:var(--mute);font-size:12px;margin-bottom:14px}
+.acts{display:flex;gap:10px}.acts button{flex:1;padding:12px;border-radius:999px;background:var(--glass);border:1px solid var(--edge)}
+.acts .go{background:var(--acc);color:var(--on);border-color:transparent;font-weight:600}
 </style>
 </head>
 <body>
@@ -78,6 +88,14 @@ h2 small{margin-left:8px;font:12px system-ui,sans-serif;opacity:.75}
 <main id="g"></main>
 <label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
 <div id="toast" hidden></div>
+<div class="sheet" id="sheet" hidden><div class="card" role="dialog" aria-labelledby="shT">
+  <h3 id="shT">Add memories</h3>
+  <label class="opt"><input type="radio" name="dm" value="own" checked> Use each file's own date</label>
+  <label class="opt"><input type="radio" name="dm" value="pick"> Put them all in this month:</label>
+  <div class="pick"><select id="mSel" aria-label="Month"></select><select id="ySel" aria-label="Year"></select></div>
+  <p class="note">Files without a date use today's date. With a chosen month, each file keeps its day of the month when it fits.</p>
+  <div class="acts"><button id="shC">Cancel</button><button id="shU" class="go">Upload</button></div>
+</div></div>
 <div class="v" id="v" hidden>
   <div class="bar"><button id="x" aria-label="Close">✕</button><button id="del" aria-label="Delete">🗑</button></div>
   <div id="m"></div><button class="nav" id="pv" aria-label="Previous">‹</button><button class="nav" id="nx" aria-label="Next">›</button><p id="cap"></p>
@@ -221,23 +239,43 @@ function makeThumb(f) {
     el.src = u;
   });
 }
-$("f").onchange = async e => {
-  const fs = [...e.target.files]; let bad = 0;
-  if (!live()) { toast("Preview mode: uploads work inside Telegram"); e.target.value = ""; return; }
-  for (let i = 0; i < fs.length; i++) {
-    const f = fs[i]; toast(`Uploading ${i + 1} of ${fs.length}…`);
+const shift = (ms, w) => { const d = new Date(ms || Date.now()); d.setFullYear(w.y, w.m, Math.min(d.getDate(), new Date(w.y, w.m + 1, 0).getDate())); return d.getTime(); };
+let pending = [];
+$("f").onchange = e => {
+  pending = [...e.target.files]; e.target.value = "";
+  if (!pending.length) return;
+  $("shT").textContent = `Add ${pending.length} ${pending.length === 1 ? "file" : "files"}`;
+  $("ySel").innerHTML = Object.keys(calendar().ms).sort((a, b) => b - a).map(y => `<option value="${y}">${y}</option>`).join("");
+  $("mSel").innerHTML = Array.from({ length: 12 }, (_, m) => `<option value="${m}">${mlong(2000, m)}</option>`).join("");
+  const cur = document.querySelector("[data-m].on");
+  $("ySel").value = selY; $("mSel").value = cur ? cur.dataset.m.split("-")[1] : 0;
+  document.querySelector('input[name=dm][value=own]').checked = true;
+  $("sheet").hidden = false;
+};
+$("mSel").onchange = $("ySel").onchange = () => { document.querySelector('input[name=dm][value=pick]').checked = true; };
+$("shC").onclick = () => { $("sheet").hidden = true; pending = []; };
+$("shU").onclick = () => {
+  $("sheet").hidden = true;
+  if (!live()) { toast("Preview mode: uploads work inside Telegram"); pending = []; return; }
+  const pick = document.querySelector("input[name=dm]:checked").value === "pick";
+  upload(pending, pick ? { y: +$("ySel").value, m: +$("mSel").value } : null); pending = [];
+};
+async function upload(files, when) {
+  let bad = 0;
+  for (let i = 0; i < files.length; i++) {
+    const f = files[i]; toast(`Uploading ${i + 1} of ${files.length}…`);
     try {
       const th = await makeThumb(f);
-      const r = await api("upload", { name: f.name, type: f.type, size: f.size, lastModified: f.lastModified, thumb: !!th });
+      const r = await api("upload", { name: f.name, type: f.type, size: f.size, lastModified: when ? shift(f.lastModified, when) : f.lastModified, thumb: !!th });
       await put(r.url, f, f.type);
       if (th && r.thumbUrl) await put(r.thumbUrl, th, "image/jpeg");
     } catch { bad++; }
   }
-  e.target.value = "";
-  if (fs.every(f => f.type.startsWith("video"))) cat = "video"; else if (fs.every(f => f.type.startsWith("image"))) cat = "image";
+  if (files.every(f => f.type.startsWith("video"))) cat = "video"; else if (files.every(f => f.type.startsWith("image"))) cat = "image";
   toast(bad ? `${bad} file${bad > 1 ? "s" : ""} couldn't upload` : "Added to your album");
-  load();
-};
+  await load();
+  if (when) { selY = when.y; timeline(); const t = document.getElementById(`m-${when.y}-${when.m}`); if (t) t.scrollIntoView({ behavior: "smooth" }); }
+}
 load();
 </script>
 </body>

@@ -2,7 +2,7 @@
 // Usage:  node bulk-upload.js "C:\Users\YourName\Pictures\Us"
 // Env:    R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
 // Photo dates come from the EXIF "date taken" when present, otherwise the file's modified date,
-// so they land in the right month of the timeline. Safe to re-run: finished files are skipped.
+// so they land in the right month of the timeline. Put files in folders named like 2024-05 to force a month. Safe to re-run: finished files are skipped.
 const fs = require("fs"), path = require("path"), crypto = require("crypto"), { execFileSync } = require("child_process");
 const { S3Client } = require("@aws-sdk/client-s3");
 const { Upload } = require("@aws-sdk/lib-storage");
@@ -45,6 +45,9 @@ async function thumb(file, video) {
     try {
       let ts = st.mtimeMs;
       if (!video) { try { const x = await exifr.parse(f, ["DateTimeOriginal"]); if (x && x.DateTimeOriginal) ts = +x.DateTimeOriginal; } catch {} }
+      // A folder named like 2024-05 (or 2024_5) puts its files in that month, keeping each file's day when it fits
+      const seg = path.relative(root, f).split(path.sep).slice(0, -1).find(x => /^\d{4}[-_. ]\d{1,2}(\D|$)/.test(x));
+      if (seg) { const [, Y, M] = seg.match(/^(\d{4})[-_. ](\d{1,2})/), d = new Date(ts); d.setFullYear(+Y, +M - 1, Math.min(d.getDate(), new Date(+Y, +M, 0).getDate())); ts = d.getTime(); }
       const base = `${Math.round(ts)}-${crypto.randomBytes(4).toString("hex")}-${path.basename(f).replace(/[^\w.-]+/g, "_").slice(-60)}`;
       await send("media/" + base, fs.createReadStream(f), type);
       const t = await thumb(f, video);
