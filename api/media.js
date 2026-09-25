@@ -166,7 +166,11 @@ module.exports = async (req, res) => {
       if (staleBases.length) await dropFavs(staleBases).catch(() => {});
       trash.sort((x, y) => y.deletedAt - x.deletedAt);
       const favs = (await getFavs().catch(() => [])).filter((k) => have.has(k));
-      const storageBytes = all.reduce((sum, o) => sum + Number(o.Size || 0), 0);
+      let storageBytes = 0;
+      for (const o of all) {
+        const n = Number(o && o.Size);
+        if (Number.isFinite(n) && n > 0) storageBytes += n;
+      }
       return res.json({ items, trash, favs, storageBytes });
     }
 

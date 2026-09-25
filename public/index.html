@@ -5,7 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>David 💛 Huyền</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
-<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <style>
 :root{--sat:calc(max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px)) + var(--tg-content-safe-area-inset-top,0px));--bg:#f6efeb;--card:#fff;--ink:#2a1c28;--mute:#65546a;--acc:#b23a5b;--on:#fff;--b1:#ffb3c7;--b2:#b9d4ff;--b3:#ffd9a8;--glass:rgba(255,255,255,.45);--edge:rgba(255,255,255,.75);
 box-sizing:border-box;padding-top:var(--sat);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -447,9 +446,16 @@ let ffmpegInstance = null, ffmpegLoading = null;
 async function getFFmpeg() {
   if (ffmpegInstance) return ffmpegInstance;
   if (ffmpegLoading) return ffmpegLoading;
-  if (!window.FFmpeg) throw new Error("Video converter unavailable");
   ffmpegLoading = (async () => {
-    const { createFFmpeg, fetchFile } = FFmpeg;
+    if (!window.FFmpeg) {
+      await new Promise((resolve, reject) => {
+        const s = document.createElement("script");
+        s.src = "https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js";
+        s.onload = resolve; s.onerror = () => reject(new Error("Video converter unavailable"));
+        document.head.appendChild(s);
+      });
+    }
+    const { createFFmpeg, fetchFile } = window.FFmpeg;
     const f = createFFmpeg({ log: false, corePath: "https://unpkg.com/@ffmpeg/core@0.11.6/dist/ffmpeg-core.js" });
     await f.load();
     f.__fetchFile = fetchFile;
