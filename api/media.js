@@ -82,7 +82,7 @@ const dropFavs = async (bases) => { // forget favorites of files that were erase
   if (keep.length !== cur.length) await putFavs(keep);
 };
 
-const put = (Key, ContentType) => getSignedUrl(s3, new PutObjectCommand({ Bucket, Key, ContentType }), { expiresIn: 900 });
+const put = (Key, ContentType, ContentLength) => getSignedUrl(s3, new PutObjectCommand({ Bucket, Key, ContentType, ...(Number.isInteger(ContentLength) ? { ContentLength } : {}) }), { expiresIn: 900 });
 
 module.exports = async (req, res) => {
   if (req.query.action === "ping") {
@@ -262,17 +262,17 @@ module.exports = async (req, res) => {
 
     if (req.query.action === "upload") {
       const type = String(b.type || "");
-      if (!/^(image|video)\//.test(type) || !(b.size > 0 && b.size <= 2e9)) return res.status(400).json({ error: "bad file" });
+      const size = Number(b.size);
+      if (!/^(image|video)\//.test(type) || !Number.isSafeInteger(size) || size <= 0 || size > 2e9) return res.status(400).json({ error: "bad file" });
       const name = String(b.name || "file").replace(/[^\w.-]+/g, "_").slice(-60);
       const base = `${Number(b.lastModified) || Date.now()}-${crypto.randomBytes(4).toString("hex")}-${name}`;
       return res.json({
         key: `media/${base}`,
-        url: await put(`media/${base}`, type),
+        url: await put(`media/${base}`, type, size),
         thumbUrl: b.thumb ? await put(`thumbs/${base}.jpg`, "image/jpeg") : null,
         compatibleUrl: /^video\//.test(type) ? await put(`compatible-v2/${base}.mp4`, "video/mp4") : null,
       });
     }
-
     const okMedia = (k) => /^media\/[\w.-]+$/.test(String(k));
     const okTrash = (k) => /^trash\/\d+~[\w.-]+$/.test(String(k));
     const keysOf = (ok) => (Array.isArray(b.keys) ? b.keys : [b.key]).filter(ok).slice(0, 300);
