@@ -59,6 +59,7 @@ async function thumb(file, video) {
     // Legacy boolean records have no R2 base key, so keep them skipped to avoid duplicate uploads.
     // New object records retain the base and can resume missing video companions safely.
     if (prior === true || (prior && typeof prior === "object" && prior.base && (!video || (prior.compatible && prior.thumb)))) { skipped++; continue; }
+    try {
       let ts = st.mtimeMs;
       if (!video) { try { const x = await exifr.parse(f, ["DateTimeOriginal"]); if (x && x.DateTimeOriginal) ts = +x.DateTimeOriginal; } catch {} }
       // A folder named like 2024-05 (or 2024_5) puts its files in that month, keeping each file's day when it fits
