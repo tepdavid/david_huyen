@@ -522,11 +522,7 @@ module.exports = async (req, res) => {
           { Key: k },
           { Key: `trash-thumbs/${rest}.jpg` },
           { Key: `trash-compatible-v2/${rest}.mp4` },
-          { Key: `trash-compatible/${rest}.mp4` },
-          // Also remove any older/orphaned generated copies left by previous versions.
-          { Key: `compatible-v2/${base}.mp4` },
-          { Key: `compatible/${base}.mp4` },
-          { Key: `thumbs/${base}.jpg` }
+          { Key: `trash-compatible/${rest}.mp4` }
         );
       }
       for (let i = 0; i < eraseObjects.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: eraseObjects.slice(i, i + 500) } }));
