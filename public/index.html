@@ -332,25 +332,33 @@ async function load() {
   catch (e) { if (e.message === "locked") return; $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
 }
 
-function show(i) {
+async function show(i) {
   idx = (i + items.length) % items.length;
   const it = items[idx];
-  if (it.type === "video" && !it.url.startsWith("data:")) {
-    const poster = it.thumb ? ` poster="${it.thumb}"` : "";
-    // Playback is always direct. Conversion is done only during upload, never when a memory is opened.
-    if (it.compatible) {
-      $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
-      const v = $("m").querySelector("video");
-      v.addEventListener("error", () => {
-        $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be played.</p><small>The browser-compatible video copy is unavailable. Please upload the video again.</small></div>`;
-      }, { once: true });
-    } else {
-      $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video is not ready for playback.</p><small>Please upload this video again. No conversion is done while viewing.</small></div>`;
+  try {
+    if (!it.url) {
+      const r = await api("resolve", { key: it.key, playKey: it.playKey || it.key });
+      it.url = r.url;
+      if (r.sourceUrl) it.sourceUrl = r.sourceUrl;
     }
-  } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
-  $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  $("v").hidden = false;
-  favIcon();
+    if (it.type === "video" && !it.url.startsWith("data:")) {
+      const poster = it.thumb ? ` poster="${it.thumb}"` : "";
+      if (it.compatible) {
+        $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
+        const v = $("m").querySelector("video");
+        v.addEventListener("error", () => {
+          $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be played.</p><small>The browser-compatible video copy is unavailable. Please upload the video again.</small></div>`;
+        }, { once: true });
+      } else {
+        $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video is not ready for playback.</p><small>Please upload this video again. No conversion is done while viewing.</small></div>`;
+      }
+    } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
+    $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    $("v").hidden = false;
+    favIcon();
+  } catch {
+    toast("Couldn't open this memory. Please try again.");
+  }
 }
 const close = () => { $("v").hidden = true; $("m").innerHTML = ""; if (cat === "fav") apply(); };
 $("g").onclick = e => {
