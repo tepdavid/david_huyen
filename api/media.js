@@ -78,22 +78,60 @@ const putState = (st) => s3.send(new PutObjectCommand({ Bucket, Key: STATE, Body
 
 // Favorites are one shared list of media keys, kept as a small file in the bucket
 const FAVS = "_meta/favorites.json";
-const getFavs = async () => {
+const FAVS_V2 = "_meta/favorites-v2/";
+const FAVS_READY = FAVS_V2 + "_ready";
+const favKey = (mediaKey) => FAVS_V2 + encodeURIComponent(mediaKey);
+
+const legacyFavs = async () => {
   try {
     const r = await s3.send(new GetObjectCommand({ Bucket, Key: FAVS }));
-    const raw = await r.Body.transformToString();
-    const j = JSON.parse(raw);
-    return Array.isArray(j) ? j.filter((x) => typeof x === "string") : [];
-  } catch (e) {
-    // Favorites are optional metadata. A missing, corrupt, or temporarily unreadable
-    // favorites file must never prevent the memories themselves from loading.
-    return [];
+    const j = JSON.parse(await r.Body.transformToString());
+    return Array.isArray(j) ? [...new Set(j.filter((x) => /^media\/[\w.-]+$/.test(x)))] : [];
+  } catch { return []; }
+};
+const favoritesReady = async () => {
+  try { await s3.send(new HeadObjectCommand({ Bucket, Key: FAVS_READY })); return true; }
+  catch { return false; }
+};
+const listFavMarkers = async () => {
+  const out = [];
+  let token;
+  do {
+    const r = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: FAVS_V2, ContinuationToken: token, MaxKeys: 1000 }));
+    for (const o of r.Contents || []) {
+      if (!o || typeof o.Key !== "string" || o.Key === FAVS_READY) continue;
+      try {
+        const key = decodeURIComponent(o.Key.slice(FAVS_V2.length));
+        if (/^media\/[\w.-]+$/.test(key)) out.push(key);
+      } catch {}
+    }
+    token = r.NextContinuationToken;
+  } while (token);
+  return out;
+};
+const getFavs = async () => favoritesReady() ? listFavMarkers() : legacyFavs();
+
+const migrateFavs = async () => {
+  if (await favoritesReady()) return;
+  for (const key of await legacyFavs()) {
+    await s3.send(new PutObjectCommand({ Bucket, Key: favKey(key), Body: "", ContentType: "application/octet-stream" }));
+  }
+  await s3.send(new PutObjectCommand({ Bucket, Key: FAVS_READY, Body: "1", ContentType: "text/plain" }));
+};
+const setFavs = async (keys, on) => {
+  await migrateFavs();
+  if (on) {
+    await Promise.all(keys.map((key) => s3.send(new PutObjectCommand({ Bucket, Key: favKey(key), Body: "", ContentType: "application/octet-stream" }))));
+  } else {
+    await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: keys.map((key) => ({ Key: favKey(key) })) } }));
   }
 };
-const putFavs = (a) => s3.send(new PutObjectCommand({ Bucket, Key: FAVS, Body: JSON.stringify(a), ContentType: "application/json" }));
-const dropFavs = async (bases) => { // forget favorites of files that were erased for good
-  const gone = new Set(bases.map((b) => `media/${b}`)), cur = await getFavs(), keep = cur.filter((k) => !gone.has(k));
-  if (keep.length !== cur.length) await putFavs(keep);
+const dropFavs = async (bases) => {
+  await migrateFavs();
+  const objects = bases.map((b) => ({ Key: favKey(`media/${b}`) }));
+  for (let i = 0; i < objects.length; i += 500) {
+    await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: objects.slice(i, i + 500) } }));
+  }
 };
 
 const put = (Key, ContentType, ContentLength) => getSignedUrl(s3, new PutObjectCommand({ Bucket, Key, ContentType, ...(Number.isInteger(ContentLength) ? { ContentLength } : {}) }), { expiresIn: 900 });
@@ -342,9 +380,7 @@ module.exports = async (req, res) => {
     if (req.query.action === "favorite") { // b.on true adds hearts, false removes them
       const keys = keysOf(okMedia);
       if (!keys.length) return res.status(400).json({ error: "bad key" });
-      const cur = new Set(await getFavs());
-      keys.forEach((k) => (b.on ? cur.add(k) : cur.delete(k)));
-      await putFavs([...cur]);
+      await setFavs(keys, !!b.on);
       return res.json({ done: keys.length });
     }
 
