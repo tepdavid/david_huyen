@@ -125,6 +125,9 @@ h1{font-size:32px}
 #fv.on{color:#ff6b8b}
 .tools{flex-wrap:wrap;justify-content:center}
 .tools button.on{background:var(--acc);color:var(--on);border-color:transparent}
+.search{display:none;margin:6px 0 0;gap:7px;align-items:center}.search.open{display:flex}.search input{flex:1;min-width:0;padding:10px 14px;border-radius:999px;border:1px solid var(--edge);background:var(--glass);color:var(--ink);outline:none}.search button{width:40px;height:40px;border-radius:50%;background:var(--glass);border:1px solid var(--edge)}.tools button.icon{padding:7px 11px;font-size:16px}.sortbox{position:relative}.sortmenu{position:absolute;right:0;top:46px;z-index:8;display:none;min-width:145px;padding:6px;border-radius:16px;background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--edge);box-shadow:0 12px 30px #0003;-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}.sortmenu.open{display:block}.sortmenu button{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:11px}.sortmenu button.on{background:var(--acc);color:var(--on)}.refreshing{animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.homehint{font-size:12px;color:var(--mute);text-align:center;padding:2px 18px 10px}.tile .dateBadge{position:absolute;left:7px;bottom:6px;padding:3px 6px;border-radius:999px;background:#0006;color:#fff;font-size:10px;backdrop-filter:blur(8px)}
+
 .hv{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;font-style:normal;font-size:15px;line-height:26px;text-align:center;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .hv::after{content:"";position:absolute;inset:-8px}
 .hv.on{background:rgba(255,255,255,.88);color:#ff4d75}
@@ -133,8 +136,8 @@ h1{font-size:32px}
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
 <header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span><span id="storage"></span></header>
-<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="trBtn">Recently deleted</button></div></div>
-<div id="st"></div>
+<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="trBtn">Recently deleted</button><button id="searchBtn" class="icon" aria-label="Search" title="Search">⌕</button><div class="sortbox"><button id="sortBtn" class="icon" aria-label="Sort" title="Sort">↕</button><div id="sortMenu" class="sortmenu"><button data-sort="newest" class="on">Newest first</button><button data-sort="oldest">Oldest first</button></div></div><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div><div class="search" id="search"><input id="searchInput" type="search" placeholder="Search memories…" autocomplete="off"><button id="searchClear" aria-label="Clear search">✕</button></div></div></div>
+<div id="st"></div><div id="homehint" class="homehint">Your memories are organized automatically by year and month.</div>
 <main id="g"></main>
 <label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
 <div class="lock" id="out" hidden>
@@ -163,7 +166,7 @@ h1{font-size:32px}
   <div class="acts"><button id="shC">Cancel</button><button id="shU" class="go">Upload</button></div>
 </div></div>
 <div class="v" id="v" hidden>
-  <div class="bar"><button id="x" aria-label="Close">✕</button><span class="rt"><button id="dl" aria-label="Download" title="Save to device">⇩</button><button id="fv" aria-label="Favorite">♡</button><button id="del" aria-label="Delete">🗑</button></span></div>
+  <div class="bar"><button id="x" aria-label="Close">✕</button><span class="rt"><button id="dl" aria-label="Download" title="Save to device">⇩</button><button id="share" aria-label="Share" title="Share">↗</button><button id="fv" aria-label="Favorite">♡</button><button id="del" aria-label="Delete">🗑</button></span></div>
   <div id="m"></div><button class="nav" id="pv" aria-label="Previous">‹</button><button class="nav" id="nx" aria-label="Next">›</button><p id="cap"></p>
 </div>
 <script>
@@ -182,7 +185,10 @@ const live = () => tg && tg.initData;
 const serverMode = () => live() || !PREVIEW;
 const browser = () => !live();
 let all = [], items = [], idx = 0, tt, cat = "image", lastCat = "image", session = "", favs = new Set();
+let sortMode = localStorage.getItem("memorySort") || "newest", query = "", themeMode = localStorage.getItem("memoryTheme") || "auto";
 $("t").textContent = TITLE; $("sub").textContent = SUBTITLE;
+function applyTheme(){ if(themeMode === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme=themeMode; $("themeBtn").textContent=themeMode==="dark"?"☾":themeMode==="light"?"☀":"◐"; }
+applyTheme();
 
 const api = async (action, body) => {
   const headers = { "Content-Type": "application/json", "x-session": session };
@@ -215,7 +221,9 @@ const demo = () => Array.from({ length: 12 }, (_, i) => {
 function apply() {
   if (selecting) setSel(false);
   if (cat !== "fav" && cat !== "all") lastCat = cat;
-  items = (cat === "fav" ? all.filter(i => favs.has(i.key)) : cat === "all" ? all.slice() : all.filter(i => i.type === cat)).sort((a, b) => b.date - a.date); // newest first
+  items = (cat === "fav" ? all.filter(i => favs.has(i.key)) : cat === "all" ? all.slice() : all.filter(i => i.type === cat));
+  if(query){ const q=query.toLowerCase(); items=items.filter(i => String(i.key).toLowerCase().includes(q) || fmt(i.date,{year:"numeric",month:"long",day:"numeric"}).toLowerCase().includes(q)); }
+  items.sort((a,b)=>sortMode === "oldest" ? a.date-b.date : b.date-a.date);
   $("allBtn").textContent = "All" + (all.length ? ` (${all.length})` : ""); $("allBtn").classList.toggle("on", cat === "all");
   favLabel();
   $("trBtn").textContent = "Recently deleted" + (trashItems.length ? ` (${trashItems.length})` : "");
@@ -228,7 +236,7 @@ $("seg").onclick = e => { const b = e.target.closest("button"); if (!b) return; 
 
 const tile = i => {
   const it = items[i], src = it.thumb || (it.type === "image" ? it.url : "");
-  return `<button class="tile" data-i="${i}" aria-label="Open ${it.type} from ${fmt(it.date)}">${src ? `<img loading="lazy" src="${src}" alt="">` : ""}${it.type === "video" ? "<b>▶</b>" : ""}<i class="ck">✓</i><i class="hv${favs.has(it.key) ? " on" : ""}" aria-hidden="true">${favs.has(it.key) ? "♥" : "♡"}</i></button>`;
+  return `<button class="tile" data-i="${i}" aria-label="Open ${it.type} from ${fmt(it.date)}">${src ? `<img loading="lazy" src="${src}" alt="">` : ""}${it.type === "video" ? "<b>▶</b>" : ""}<span class="dateBadge">${new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span><i class="ck">✓</i><i class="hv${favs.has(it.key) ? " on" : ""}" aria-hidden="true">${favs.has(it.key) ? "♥" : "♡"}</i></button>`;
 };
 
 // Timeline: every month of every year is shown, whether or not it has memories yet
@@ -309,6 +317,19 @@ $("tl").onclick = e => {
     else toast(`No ${what} in ${mname(y, m, true)} yet`);
   }
 };
+async function shareCurrent(){
+  const it=items[idx]; if(!it) return;
+  const text=`Our memory — ${fmt(it.date,{day:"numeric",month:"long",year:"numeric"})}`;
+  try{ if(navigator.share){ await navigator.share({title:TITLE,text}); } else { await navigator.clipboard.writeText(text); toast("Memory date copied"); } }catch(e){}
+}
+function setSort(mode){ sortMode=mode; localStorage.setItem("memorySort",mode); document.querySelectorAll("#sortMenu button").forEach(b=>b.classList.toggle("on",b.dataset.sort===mode)); apply(); }
+function toggleSearch(){ const e=$("search"); e.classList.toggle("open"); if(e.classList.contains("open")){ $("searchInput").focus(); } else { query=""; $("searchInput").value=""; apply(); } }
+let pullStart=0, pullArmed=false;
+addEventListener("touchstart",e=>{ if(scrollY<=4) pullStart=e.touches[0].clientY; },{passive:true});
+addEventListener("touchmove",e=>{ if(pullStart && e.touches[0].clientY-pullStart>70) pullArmed=true; },{passive:true});
+addEventListener("touchend",async()=>{ if(pullArmed){ pullArmed=false; pullStart=0; await refreshData(); } },{passive:true});
+async function refreshData(){ if($("refreshBtn")){ $("refreshBtn").classList.add("refreshing"); } try{ await load(); toast("Memories refreshed"); } finally { $("refreshBtn")?.classList.remove("refreshing"); } }
+
 async function load() {
   if (!live() && PREVIEW) { all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode."; return; }
   try { const r = await api("list"); all = r.items; trashItems = r.trash || []; favs = new Set(r.favs || []); updateStorage(r.storageBytes || 0); apply(); }
@@ -679,6 +700,18 @@ $("selFav").onclick = async () => {
   const keys = [...sel], on = !keys.every(k => favs.has(k));
   await setFav(keys, on); setSel(false); toast(on ? "Added to Favorites" : "Removed from Favorites");
 };
+
+$("searchBtn").onclick=toggleSearch;
+$("searchClear").onclick=()=>{ $("searchInput").value=""; query=""; apply(); $("searchInput").focus(); };
+$("searchInput").addEventListener("input",e=>{query=e.target.value.trim(); apply();});
+$("sortBtn").onclick=()=>$("sortMenu").classList.toggle("open");
+$("sortMenu").onclick=e=>{const b=e.target.closest("button[data-sort]");if(b){setSort(b.dataset.sort);$("sortMenu").classList.remove("open");}};
+$("themeBtn").onclick=()=>{themeMode=themeMode==="auto"?"light":themeMode==="light"?"dark":"auto";localStorage.setItem("memoryTheme",themeMode);applyTheme();};
+$("refreshBtn").onclick=refreshData;
+$("share").onclick=shareCurrent;
+document.addEventListener("click",e=>{if(!e.target.closest(".sortbox"))$("sortMenu").classList.remove("open");});
+document.querySelectorAll("#sortMenu button").forEach(b=>b.classList.toggle("on",b.dataset.sort===sortMode));
+
 load();
 </script>
 </body>
