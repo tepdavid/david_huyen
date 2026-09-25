@@ -263,27 +263,29 @@ function calendar() {
 const countLabel=list=>{const p=list.filter(i=>i.type==="image").length,v=list.filter(i=>i.type==="video").length;return [p&&`(${p} ${p===1?"photo":"photos"})`,v&&`(${v} ${v===1?"video":"videos"})`].filter(Boolean).join(", ");};
 
 let renderLimit = 300;
+let renderLimit = 300;
 function draw() {
   $("n").textContent=all.length+(all.length===1?" memory":" memories");
   const {ms}=calendar(),what=cat==="video"?"videos":cat==="fav"?"favorites":cat==="all"?"memories":cat==="other"?"other memories":"photos";
-  const by={},other=[],visibleItems=items.slice(0,renderLimit),visibleSet=new Set(visibleItems.map(it=>it.key));
-  visibleItems.forEach((it,i)=>{if(it.timeline==="other") other.push(i); else {const d=new Date(it.date),k=d.getFullYear()+"-"+d.getMonth();(by[k]=by[k]||[]).push(i);}});
-  let h=visibleItems.length?"":(cat==="fav"?`<p class="empty">No favorites yet. Tap the ♡ on any photo or video.</p>`:cat==="all"?`<p class="empty">Nothing here yet. Tap + to add photos and videos.</p>`:`<p class="empty">No ${what} yet. Tap + to add some.</p>`);
+  const by={},other=[];
+  items.forEach((it,i)=>{if(i>=renderLimit)return;if(it.timeline==="other") other.push(i); else {const d=new Date(it.date),k=d.getFullYear()+"-"+d.getMonth();(by[k]=by[k]||[]).push(i);}});
+  const visibleCount=Math.min(renderLimit,items.length);
+  let h=visibleCount?"":(cat==="fav"?`<p class="empty">No favorites yet. Tap the ♡ on any photo or video.</p>`:cat==="all"?`<p class="empty">Nothing here yet. Tap + to add photos and videos.</p>`:`<p class="empty">No ${what} yet. Tap + to add some.</p>`);
   Object.keys(ms).sort((a,b)=>b-a).forEach(y=>{
     const yearItems=all.filter(i=>i.timeline!=="other" && new Date(i.date).getFullYear()===+y);
     h+=`<h3 class="yr" id="y-${y}">${yi(+y)} ${y} <small>${countLabel(yearItems)}</small></h3>`;
     [...ms[y]].sort((a,b)=>b-a).forEach(m=>{
-      const list=by[y+"-"+m]||[],label=countLabel(list.map(i=>visibleItems[i]));
+      const list=by[y+"-"+m]||[],label=countLabel(list.map(i=>items[i]));
       h+=`<h2 id="m-${y}-${m}">${mi(+y,m)} ${mlong(+y,m)}${label?` <small>${label}</small>`:""}</h2>`;
       if(!list.length) h+=`<p class="none">No ${what} yet</p>`;
       else if(sortMode==="moments"){
         const days={};
-        [...list].sort((a,b)=>visibleItems[a].date-visibleItems[b].date).forEach(i=>{const d=new Date(visibleItems[i].date),k=`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;(days[k]=days[k]||[]).push(i);});
-        Object.keys(days).sort((a,b)=>new Date(a)-new Date(b)).forEach(k=>{const d=new Date(k),label=d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});h+=`<div class="momentHead">${label}<small>${countLabel(days[k].map(i=>visibleItems[i]))}</small></div><div class="grid">${days[k].map(tile).join("")}</div>`;});
+        [...list].sort((a,b)=>items[a].date-items[b].date).forEach(i=>{const d=new Date(items[i].date),k=`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;(days[k]=days[k]||[]).push(i);});
+        Object.keys(days).sort((a,b)=>new Date(a)-new Date(b)).forEach(k=>{const d=new Date(k),label=d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});h+=`<div class="momentHead">${label}<small>${countLabel(days[k].map(i=>items[i]))}</small></div><div class="grid">${days[k].map(tile).join("")}</div>`;});
       } else h+=`<div class="grid">${list.map(tile).join("")}</div>`;
     });
   });
-  if(other.length){const oi=other.map(i=>visibleItems[i]);h+=`<h3 class="otherHead" id="other-section">📦 Others <small>${countLabel(oi)}</small></h3><div class="grid">${other.map(tile).join("")}</div>`;}
+  if(other.length){const oi=other.map(i=>items[i]);h+=`<h3 class="otherHead" id="other-section">📦 Others <small>${countLabel(oi)}</small></h3><div class="grid">${other.map(tile).join("")}</div>`;}
   if(renderLimit < items.length) h+=`<div style="text-align:center;padding:24px"><button id="loadMore" class="retry">Load more memories (${items.length-renderLimit} remaining)</button></div>`;
   $("g").innerHTML=h; timeline(); spy();
 }
