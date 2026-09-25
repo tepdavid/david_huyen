@@ -15,14 +15,14 @@ const isVideo = k => /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpeg|mpg)$/i.test(k);
     for(const o of r.Contents||[]) {
       if(!o.Key.startsWith("media/") || !isVideo(o.Key.slice(6))) continue;
       const base=o.Key.slice(6), out=`compatible/${base}.mp4`; n++;
-      try { await s3.send(new HeadObjectCommand({Bucket:E.R2_BUCKET,Key:out})); console.log(`OK  ${base}`); continue; } catch {}
+      try { await s3.send(new HeadObjectCommand({Bucket:E.R2_BUCKET,Key:outputKey})); console.log(`OK  ${base}`); continue; } catch {}
       const tmpIn=path.join(os.tmpdir(),`in-${crypto.randomBytes(5).toString("hex")}`), tmpOut=path.join(os.tmpdir(),`out-${crypto.randomBytes(5).toString("hex")}.mp4`);
       try {
         const r2=await s3.send(new GetObjectCommand({Bucket:E.R2_BUCKET,Key:o.Key}));
         const out=fs.createWriteStream(tmpIn);
         await new Promise((resolve,reject)=>{ r2.Body.pipe(out); out.on("finish",resolve); out.on("error",reject); r2.Body.on("error",reject); });
         execFileSync("ffmpeg",["-y","-i",tmpIn,"-map","0:v:0","-map","0:a?","-c:v","libx264","-preset","veryfast","-crf","22","-pix_fmt","yuv420p","-movflags","+faststart","-c:a","aac","-b:a","128k",tmpOut],{stdio:"ignore"});
-        await send(out,fs.createReadStream(tmpOut)); fixed++; console.log(`FIX ${base}`);
+        await send(outputKey,fs.createReadStream(tmpOut)); fixed++; console.log(`FIX ${base}`);
       } catch(e) { console.error(`ERR ${base}: ${e.message}`); }
       finally { try{fs.unlinkSync(tmpIn)}catch{} try{fs.unlinkSync(tmpOut)}catch{} }
     }
