@@ -64,6 +64,12 @@ const move = async (from, to) => {
 const moveOptional = async (from, to) => {
   for (let attempt = 0; attempt < 3; attempt++) {
     try {
+      await s3.send(new HeadObjectCommand({ Bucket, Key: from }));
+    } catch {
+      // Missing optional companion is normal; there is nothing to repair.
+      return true;
+    }
+    try {
       await move(from, to);
       return true;
     } catch (e) {
