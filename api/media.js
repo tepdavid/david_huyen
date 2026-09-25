@@ -38,7 +38,7 @@ function verify(initData) {
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return { reason: "bad_signature" };
   const age = Date.now() / 1000 - Number(p.get("auth_date"));
   if (!Number.isFinite(age) || age < -300) return { reason: "invalid_auth_date", age };
-  if (age > 604800) return { reason: "expired", age }; // 7 days: only the two allowed accounts can pass anyway
+  if (age > 86400) return { reason: "expired", age }; // Telegram initData should be reasonably fresh
   try { return { user: JSON.parse(p.get("user")) }; } catch { return { reason: "no_initdata" }; }
 }
 
@@ -85,9 +85,15 @@ const dropFavs = async (bases) => { // forget favorites of files that were erase
 const put = (Key, ContentType) => getSignedUrl(s3, new PutObjectCommand({ Bucket, Key, ContentType }), { expiresIn: 900 });
 
 module.exports = async (req, res) => {
-  if (req.query.action === "ping") { // open /api/media?action=ping in a browser to confirm what is deployed
-    const tk = (E.BOT_TOKEN || "").trim().replace(/^["']+|["']+$/g, "");
-    return res.json({ version: 7, pinSet: /^\\d{4}$/.test(R("ALBUM_PIN")), problem: configProblem() || "none", hasToken: !!tk,\n      allowedIds: (E.ALLOWED_USER_IDS || "").split(",").filter((s) => s.trim()).length,\n      hasStorage: !!(R("R2_ACCOUNT_ID") && R("R2_ACCESS_KEY_ID") && R("R2_SECRET_ACCESS_KEY") && R("R2_BUCKET")),\n      accountIdOk: /^[0-9a-f]{32}$/i.test(ACCT) });
+  if (req.query.action === "ping") {
+    return res.json({
+      ok: !configProblem(),
+      configured: {
+        telegram: !!R("BOT_TOKEN") && (E.ALLOWED_USER_IDS || "").split(",").some(s => s.trim()),
+        storage: !!(R("R2_ACCOUNT_ID") && R("R2_ACCESS_KEY_ID") && R("R2_SECRET_ACCESS_KEY") && R("R2_BUCKET")),
+        browserPin: /^\\d{4}$/.test(R("ALBUM_PIN"))
+      }
+    });
   }
   if (req.method !== "POST") return res.status(405).end();
   const h = req.headers.authorization || "";
@@ -136,10 +142,13 @@ module.exports = async (req, res) => {
     if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
 
     if (req.query.action === "check") { // reports which settings are missing and whether storage is reachable
-      const env = Object.fromEntries(["BOT_TOKEN", "ALLOWED_USER_IDS", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"].map((k) => [k, !!E[k]]));
       let storage = configProblem() || "ok";
-      if (storage === "ok") { try { await s3.send(new ListObjectsV2Command({ Bucket, MaxKeys: 1 })); } catch (e) { storage = `${e.name}: ${e.message}`; } }
-      return res.json({ env, storage });
+      if (storage === "ok") { try { await s3.send(new ListObjectsV2Command({ Bucket, MaxKeys: 1 })); } catch { storage = "unreachable"; } }
+      return res.json({ configured: {
+        telegram: !!R("BOT_TOKEN") && (E.ALLOWED_USER_IDS || "").split(",").some(s => s.trim()),
+        storage: !!(R("R2_ACCOUNT_ID") && R("R2_ACCESS_KEY_ID") && R("R2_SECRET_ACCESS_KEY") && R("R2_BUCKET")),
+        browserPin: /^\\d{4}$/.test(R("ALBUM_PIN"))
+      }, storage });
     }
 
     if (req.query.action === "list") {
