@@ -139,13 +139,18 @@ const put = (Key, ContentType, ContentLength) => getSignedUrl(s3, new PutObjectC
 const hasUploadMarker = async (base) => {
   const prefix = "_uploads/";
   try {
-    const r = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: prefix, MaxKeys: 1000 }));
-    return (r.Contents || []).some((o) => {
-      if (!o || typeof o.Key !== "string" || !o.Key.startsWith(prefix)) return false;
-      const token = o.Key.slice(prefix.length);
-      const cut = token.indexOf("~");
-      return cut > 0 && token.slice(cut + 1) === base;
-    });
+    let token;
+    do {
+      const r = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: prefix, ContinuationToken: token, MaxKeys: 1000 }));
+      if ((r.Contents || []).some((o) => {
+        if (!o || typeof o.Key !== "string" || !o.Key.startsWith(prefix)) return false;
+        const marker = o.Key.slice(prefix.length);
+        const cut = marker.indexOf("~");
+        return cut > 0 && marker.slice(cut + 1) === base;
+      })) return true;
+      token = r.NextContinuationToken;
+    } while (token);
+    return false;
   } catch {
     return false;
   }
