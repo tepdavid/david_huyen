@@ -424,7 +424,7 @@ module.exports = async (req, res) => {
         return res.status(409).json({ error: "upload_size_mismatch" });
       }
 
-      if (/^video\\//.test(marker.type || "")) {
+      if (/^video\//.test(marker.type || "")) {
         let compatible = false;
         for (const candidate of [`compatible-v2/${base}.mp4`, `compatible/${base}.mp4`]) {
           try {
