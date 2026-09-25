@@ -152,26 +152,6 @@ const dropFavs = async (bases) => {
 
 const put = (Key, ContentType, ContentLength) => getSignedUrl(s3, new PutObjectCommand({ Bucket, Key, ContentType, ...(Number.isInteger(ContentLength) ? { ContentLength } : {}) }), { expiresIn: 900 });
 
-const hasUploadMarker = async (base) => {
-  const prefix = "_uploads/";
-  try {
-    let token;
-    do {
-      const r = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: prefix, ContinuationToken: token, MaxKeys: 1000 }));
-      if ((r.Contents || []).some((o) => {
-        if (!o || typeof o.Key !== "string" || !o.Key.startsWith(prefix)) return false;
-        const marker = o.Key.slice(prefix.length);
-        const cut = marker.indexOf("~");
-        return cut > 0 && marker.slice(cut + 1) === base;
-      })) return true;
-      token = r.NextContinuationToken;
-    } while (token);
-    return false;
-  } catch {
-    return false;
-  }
-};
-
 module.exports = async (req, res) => {
   if (req.query.action === "ping") {
     return res.json({
