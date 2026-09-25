@@ -191,10 +191,9 @@ module.exports = async (req, res) => {
             staleBases.push(base); continue;
           }
           try {
-            const [url, thumb] = await Promise.all([
-              sign(o.Key),
-              sign(tk)
-            ]);
+            const url = await sign(o.Key);
+            let thumb = null;
+            try { thumb = await sign(tk); } catch {}
             trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url, thumb });
           } catch {}
         }
