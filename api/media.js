@@ -1,7 +1,7 @@
 // POST /api/media?action=list|upload|delete
 // Env: BOT_TOKEN, ALLOWED_USER_IDS (comma-separated Telegram ids), R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
 const crypto = require("crypto");
-const { S3Client, ListObjectsV2Command, CopyObjectCommand, GetObjectCommand, PutObjectCommand, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
+const { S3Client, ListObjectsV2Command, CopyObjectCommand, GetObjectCommand, PutObjectCommand, DeleteObjectsCommand, HeadObjectCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
 const E = process.env;
@@ -143,62 +143,76 @@ module.exports = async (req, res) => {
     }
 
     if (req.query.action === "list") {
-      // Keep the full-bucket scan, but process each page immediately instead of retaining every
-      // R2 object in memory. R2 ListObjectsV2 is paginated (up to 1,000 keys per page).
-      const mediaObjects = [], trashObjects = [], have = new Set();
-      let storageBytes = 0, tok;
-      do {
-        const r = await s3.send(new ListObjectsV2Command({ Bucket, ContinuationToken: tok, MaxKeys: 1000 }));
-        for (const o of (r.Contents || [])) {
-          if (!o || typeof o.Key !== "string") continue;
-          have.add(o.Key);
-          if (o.Key.startsWith("media/") && o.Key.length > 6) mediaObjects.push(o);
-          else if (o.Key.startsWith("trash/")) trashObjects.push(o);
-          const n = Number(o.Size);
-          if (Number.isFinite(n) && n > 0) storageBytes += n;
-        }
-        tok = r.NextContinuationToken;
-      } while (tok);
+      // Paginate only the media namespace. R2 ListObjectsV2 supports opaque continuation
+      // tokens, so the client can request the next page without rescanning the whole bucket.
+      const pageSize = Math.max(50, Math.min(300, Number(req.query.limit) || 300));
+      const cursor = typeof b.cursor === "string" && b.cursor.length <= 2048 ? b.cursor : undefined;
+      const r = await s3.send(new ListObjectsV2Command({
+        Bucket, Prefix: "media/", ContinuationToken: cursor, MaxKeys: pageSize
+      }));
+      const mediaObjects = (r.Contents || []).filter(o => o && typeof o.Key === "string" && o.Key.length > 6);
 
       const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
       const itemResults = await each(mediaObjects, async (o) => {
-        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatibleV2 = `compatible-v2/${base}.mp4`, compatibleV1 = `compatible/${base}.mp4`;
+        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`;
         const type = kindOf(base);
-        // Prefer a browser-friendly H.264/AAC MP4 when a compatible copy has been created.
-        const compatible = type === "video" && (have.has(compatibleV2) || have.has(compatibleV1)) ? (have.has(compatibleV2) ? compatibleV2 : compatibleV1) : null;
-        const playKey = compatible || o.Key;
-        const [url, sourceUrl, thumb] = await Promise.all([
-          type === "video" ? Promise.resolve(null) : (have.has(tk) ? Promise.resolve(null) : sign(o.Key)),
-          Promise.resolve(null),
-          have.has(tk) ? sign(tk) : Promise.resolve(null)
-        ]);
-        return { key: o.Key, playKey, size: Number(o.Size) || 0, date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0, type, url, sourceUrl, thumb, compatible: playKey !== o.Key, timeline: base.startsWith("other-") ? "other" : "date" };
+        // Thumbnails are cheap to probe here; compatible video copies are resolved on demand.
+        let thumb = null;
+        try { await s3.send(new HeadObjectCommand({ Bucket, Key: tk })); thumb = await sign(tk); } catch {}
+        return {
+          key: o.Key,
+          playKey: o.Key,
+          size: Number(o.Size) || 0,
+          date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0,
+          type,
+          url: type === "video" ? null : (thumb ? null : await sign(o.Key)),
+          sourceUrl: null,
+          thumb,
+          compatible: false,
+          timeline: base.startsWith("other-") ? "other" : "date"
+        };
       }, 8);
       const items = itemResults.filter(Boolean);
       items.sort((x, y) => y.date - x.date);
 
-      // Recently deleted lives under trash/<deletedAt>~<name>. Anything older than 30 days is erased here.
-      const now = Date.now(), stale = [], staleBases = [], trash = [];
-      for (const o of trashObjects) {
-        const rest = o.Key.slice(6), cut = rest.indexOf("~"), at = Number(rest.slice(0, cut)), base = rest.slice(cut + 1), tk = `trash-thumbs/${rest}.jpg`;
-        if (!(at > 0)) continue;
-        if (now - at > 30 * 864e5) {
-          stale.push(o.Key, tk, `trash-compatible-v2/${rest}.mp4`, `trash-compatible/${rest}.mp4`, `compatible-v2/${base}.mp4`, `compatible/${base}.mp4`, `thumbs/${base}.jpg`);
-          staleBases.push(base); continue;
+      // Trash/favorites are loaded only on the first page. This keeps subsequent page
+      // requests focused on media metadata instead of repeating unrelated work.
+      let trash = [], favs = [], storageBytes = 0;
+      if (!cursor) {
+        const trashPage = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: "trash/", MaxKeys: 1000 }));
+        const haveTrash = new Set((trashPage.Contents || []).map(o => o && o.Key).filter(Boolean));
+        const now = Date.now(), stale = [], staleBases = [];
+        for (const o of (trashPage.Contents || [])) {
+          if (!o || typeof o.Key !== "string") continue;
+          const rest = o.Key.slice(6), cut = rest.indexOf("~"), at = Number(rest.slice(0, cut)), base = rest.slice(cut + 1), tk = `trash-thumbs/${rest}.jpg`;
+          if (!(at > 0)) continue;
+          if (now - at > 30 * 864e5) {
+            stale.push(o.Key, tk, `trash-compatible-v2/${rest}.mp4`, `trash-compatible/${rest}.mp4`, `compatible-v2/${base}.mp4`, `compatible/${base}.mp4`, `thumbs/${base}.jpg`);
+            staleBases.push(base); continue;
+          }
+          try {
+            const [url, thumb] = await Promise.all([
+              sign(o.Key),
+              sign(tk)
+            ]);
+            trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url, thumb });
+          } catch {}
         }
-        try {
-          const [url, thumb] = await Promise.all([
-            sign(o.Key),
-            have.has(tk) ? sign(tk) : Promise.resolve(null)
-          ]);
-          trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url, thumb });
-        } catch {}
+        for (let i = 0; i < stale.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: stale.slice(i, i + 500).map(Key => ({ Key })) } }));
+        if (staleBases.length) await dropFavs(staleBases).catch(() => {});
+        trash.sort((x, y) => y.deletedAt - x.deletedAt);
+        favs = await getFavs().catch(() => []);
       }
-      for (let i = 0; i < stale.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: stale.slice(i, i + 500).map((Key) => ({ Key })) } }));
-      if (staleBases.length) await dropFavs(staleBases).catch(() => {});
-      trash.sort((x, y) => y.deletedAt - x.deletedAt);
-      const favs = (await getFavs().catch(() => [])).filter((k) => have.has(k));
-      return res.json({ items, trash, favs, storageBytes });
+
+      storageBytes = mediaObjects.reduce((n, o) => n + (Number(o.Size) > 0 ? Number(o.Size) : 0), 0);
+      return res.json({
+        items,
+        trash,
+        favs,
+        storageBytes,
+        storagePage: true,
+        nextCursor: r.NextContinuationToken || null
+      });
     }
     if (req.query.action === "resolve") {
       const key = String(b.key || "");
