@@ -54,3 +54,261 @@ const each = async (arr, fn, n = 8) => { // run fn on every item, a few at a tim
   await Promise.all(Array.from({ length: Math.min(n, arr.length) }, async () => { while (i < arr.length) { const j = i++; try { out[j] = await fn(arr[j]); } catch { out[j] = null; } } }));
   return out;
 };
+// Passcode lock: failed attempts are remembered in the bucket so the lockout survives between requests
+const BOT = R("BOT_TOKEN"), STATE = "_meta/pin.json";
+const getState = async () => {
+  try { const r = await s3.send(new GetObjectCommand({ Bucket, Key: STATE })); return JSON.parse(await r.Body.transformToString()); }
+  catch { return { fails: 0, lockedUntil: 0 }; }
+};
+const putState = (st) => s3.send(new PutObjectCommand({ Bucket, Key: STATE, Body: JSON.stringify(st), ContentType: "application/json" }));
+
+// Favorites are one shared list of media keys, kept as a small file in the bucket
+const FAVS = "_meta/favorites.json";
+const getFavs = async () => {
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket, Key: FAVS }));
+    const raw = await r.Body.transformToString();
+    const j = JSON.parse(raw);
+    return Array.isArray(j) ? j.filter((x) => typeof x === "string") : [];
+  } catch (e) {
+    // Favorites are optional metadata. A missing, corrupt, or temporarily unreadable
+    // favorites file must never prevent the memories themselves from loading.
+    return [];
+  }
+};
+const putFavs = (a) => s3.send(new PutObjectCommand({ Bucket, Key: FAVS, Body: JSON.stringify(a), ContentType: "application/json" }));
+const dropFavs = async (bases) => { // forget favorites of files that were erased for good
+  const gone = new Set(bases.map((b) => `media/${b}`)), cur = await getFavs(), keep = cur.filter((k) => !gone.has(k));
+  if (keep.length !== cur.length) await putFavs(keep);
+};
+
+const put = (Key, ContentType) => getSignedUrl(s3, new PutObjectCommand({ Bucket, Key, ContentType }), { expiresIn: 900 });
+
+module.exports = async (req, res) => {
+  if (req.query.action === "ping") { // open /api/media?action=ping in a browser to confirm what is deployed
+    const tk = (E.BOT_TOKEN || "").trim().replace(/^["']+|["']+$/g, "");
+    return res.json({ version: 7, pinSet: /^\d{4}$/.test(R("ALBUM_PIN")), problem: configProblem() || "none", hasToken: !!tk, botId: tk.split(":")[0] || null, tokenLength: tk.length,
+      allowedIds: (E.ALLOWED_USER_IDS || "").split(",").filter((s) => s.trim()).length,
+      hasStorage: !!(R("R2_ACCOUNT_ID") && R("R2_ACCESS_KEY_ID") && R("R2_SECRET_ACCESS_KEY") && R("R2_BUCKET")),
+      bucket: Bucket, accountIdOk: /^[0-9a-f]{32}$/i.test(ACCT),
+      lengths: { accountId: ACCT.length, accessKeyId: R("R2_ACCESS_KEY_ID").length, secret: R("R2_SECRET_ACCESS_KEY").length } });
+  }
+  if (req.method !== "POST") return res.status(405).end();
+  const h = req.headers.authorization || "";
+  const isTelegram = h.startsWith("tma ");
+  const v = isTelegram ? verify(h.slice(4)) : null;
+  const user = v && v.user ? v.user : null;
+  const browserMode = !isTelegram;
+  const allowed = (E.ALLOWED_USER_IDS || "").split(",").map((s) => s.trim().replace(/["']/g, "")).filter(Boolean);
+  if (isTelegram && !user) return res.status(401).json({ error: "unauthorized", reason: v.reason, age: v.age });
+  if (isTelegram && !allowed.includes(String(user.id))) return res.status(403).json({ error: "private" });
+
+  const b = req.body || {};
+  const PIN = R("ALBUM_PIN"), pinOn = /^\d{4}$/.test(PIN);
+  // Telegram sessions are tied to the Telegram account. Browser sessions use a separate subject.
+  const subject = browserMode ? "web" : String(user.id);
+  const mac = (exp, who = subject) => crypto.createHmac("sha256", `${BOT}:${PIN}`).update(`${who}:${exp}`).digest("hex");
+  const makeSession = (exp) => browserMode ? `web.${exp}.${mac(exp, "web")}` : `tg.${user.id}.${exp}.${mac(exp, String(user.id))}`;
+  try {
+    if (req.query.action === "unlock") {
+      if (!pinOn) return browserMode ? res.status(400).json({ error: "browser_password_not_configured" }) : res.json({ session: "", ttl: 0 });
+      const guess = String(b.pin || "");
+      if (!/^\d{4}$/.test(guess)) return res.status(400).json({ error: "bad pin" });
+      const now = Date.now(), st = await getState();
+      if (st.lockedUntil > now) return res.status(429).json({ error: "locked_out", wait: Math.ceil((st.lockedUntil - now) / 1000) });
+      if (crypto.timingSafeEqual(Buffer.from(guess), Buffer.from(PIN))) {
+        if (st.fails) await putState({ fails: 0, lockedUntil: 0 }).catch(() => {});
+        const exp = now + 3600 * 1000;
+        return res.json({ session: makeSession(exp), ttl: 3600, mode: browserMode ? "web" : "telegram" });
+      }
+      st.fails = (st.fails || 0) + 1;
+      const out = st.fails >= 5;
+      await putState(out ? { fails: 0, lockedUntil: now + 15 * 60 * 1000 } : st);
+      return out ? res.status(429).json({ error: "locked_out", wait: 900 }) : res.status(401).json({ error: "wrong_pin", left: 5 - st.fails });
+    }
+    // Telegram access can be authenticated by Telegram alone when no passcode is configured.
+    // Browser access always requires a valid one-hour web session.
+    const raw = String(req.headers["x-session"] || "");
+    let good = false;
+    if (browserMode) {
+      const [kind, exp, sig = ""] = raw.split(".");
+      good = kind === "web" && Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp, "web")));
+    } else if (pinOn) {
+      const [kind, id, exp, sig = ""] = raw.split(".");
+      good = kind === "tg" && id === String(user.id) && Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp, String(user.id))));
+    } else good = true;
+    if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
+
+    if (req.query.action === "check") { // reports which settings are missing and whether storage is reachable
+      const env = Object.fromEntries(["BOT_TOKEN", "ALLOWED_USER_IDS", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"].map((k) => [k, !!E[k]]));
+      let storage = configProblem() || "ok";
+      if (storage === "ok") { try { await s3.send(new ListObjectsV2Command({ Bucket, MaxKeys: 1 })); } catch (e) { storage = `${e.name}: ${e.message}`; } }
+      return res.json({ env, storage });
+    }
+
+    if (req.query.action === "list") {
+      const all = []; let tok;
+      do {
+        const r = await s3.send(new ListObjectsV2Command({ Bucket, ContinuationToken: tok }));
+        all.push(...(r.Contents || []));
+        tok = r.NextContinuationToken;
+      } while (tok);
+      const have = new Set(all.map((o) => o.Key));
+      const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
+      const mediaObjects = all.filter((o) => typeof o.Key === "string" && o.Key.startsWith("media/") && o.Key.length > 6);
+      const itemResults = await each(mediaObjects, async (o) => {
+        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatibleV2 = `compatible-v2/${base}.mp4`, compatibleV1 = `compatible/${base}.mp4`;
+        const type = kindOf(base);
+        // Prefer a browser-friendly H.264/AAC MP4 when a compatible copy has been created.
+        const compatible = type === "video" && (have.has(compatibleV2) || have.has(compatibleV1)) ? (have.has(compatibleV2) ? compatibleV2 : compatibleV1) : null;
+        const playKey = compatible || o.Key;
+        return { key: o.Key, size: Number(o.Size) || 0, date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0, type, url: await sign(playKey), sourceUrl: type === "video" ? await sign(o.Key) : null, thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key, timeline: base.startsWith("other-") ? "other" : "date" };
+      }, 8);
+      const items = itemResults.filter(Boolean);
+      items.sort((x, y) => y.date - x.date);
+      // Recently deleted lives under trash/<deletedAt>~<name>. Anything older than 30 days is erased here.
+      const now = Date.now(), stale = [], staleBases = [], trash = [];
+      for (const o of all.filter((o) => o.Key.startsWith("trash/"))) {
+        const rest = o.Key.slice(6), cut = rest.indexOf("~"), at = Number(rest.slice(0, cut)), base = rest.slice(cut + 1), tk = `trash-thumbs/${rest}.jpg`;
+        if (!(at > 0)) continue;
+        if (now - at > 30 * 864e5) {
+          stale.push(o.Key, tk, `trash-compatible-v2/${rest}.mp4`, `trash-compatible/${rest}.mp4`, `compatible-v2/${base}.mp4`, `compatible/${base}.mp4`, `thumbs/${base}.jpg`);
+          staleBases.push(base); continue;
+        }
+        try {
+          trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url: await sign(o.Key), thumb: have.has(tk) ? await sign(tk) : null });
+        } catch {}
+      }
+      for (let i = 0; i < stale.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: stale.slice(i, i + 500).map((Key) => ({ Key })) } }));
+      if (staleBases.length) await dropFavs(staleBases).catch(() => {});
+      trash.sort((x, y) => y.deletedAt - x.deletedAt);
+      const favs = (await getFavs().catch(() => [])).filter((k) => have.has(k));
+      let storageBytes = 0;
+      for (const o of all) {
+        const n = Number(o && o.Size);
+        if (Number.isFinite(n) && n > 0) storageBytes += n;
+      }
+      return res.json({ items, trash, favs, storageBytes });
+    }
+
+    if (req.query.action === "cleanupUpload") {
+      const key = String(b.key || "");
+      if (!/^media\/[\w.-]+$/.test(key)) return res.status(400).json({ error: "bad key" });
+      const base = key.slice(6);
+      const objects = [
+        { Key: key },
+        { Key: `compatible-v2/${base}.mp4` },
+        { Key: `compatible/${base}.mp4` },
+        { Key: `thumbs/${base}.jpg` }
+      ];
+      await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: objects } }));
+      return res.json({ done: true });
+    }
+
+    if (req.query.action === "compatible") {
+      const key = String(b.key || "");
+      if (!/^media\/[\w.-]+$/.test(key) || !/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(key.slice(6))) return res.status(400).json({ error: "bad key" });
+      const base = key.slice(6);
+      // The client converts the original bytes to H.264/AAC in WASM, then uploads this copy.
+      const uploadKey = `compatible-v2/${base}.mp4`;
+      const thumbKey = `thumbs/${base}.jpg`;
+      return res.json({ uploadUrl: await put(uploadKey, "video/mp4"), playUrl: await sign(uploadKey), thumbUrl: await put(thumbKey, "image/jpeg"), key: uploadKey });
+    }
+
+    if (req.query.action === "upload") {
+      const type = String(b.type || "");
+      if (!/^(image|video)\//.test(type) || !(b.size > 0 && b.size <= 2e9)) return res.status(400).json({ error: "bad file" });
+      const name = String(b.name || "file").replace(/[^\w.-]+/g, "_").slice(-60);
+      const base = `${Number(b.lastModified) || Date.now()}-${crypto.randomBytes(4).toString("hex")}-${name}`;
+      return res.json({
+        key: `media/${base}`,
+        url: await put(`media/${base}`, type),
+        thumbUrl: b.thumb ? await put(`thumbs/${base}.jpg`, "image/jpeg") : null,
+        compatibleUrl: /^video\//.test(type) ? await put(`compatible-v2/${base}.mp4`, "video/mp4") : null,
+      });
+    }
+
+    const okMedia = (k) => /^media\/[\w.-]+$/.test(String(k));
+    const okTrash = (k) => /^trash\/\d+~[\w.-]+$/.test(String(k));
+    const keysOf = (ok) => (Array.isArray(b.keys) ? b.keys : [b.key]).filter(ok).slice(0, 300);
+
+    if (req.query.action === "download") {
+      const key = String(b.key || "");
+      if (!/^media\/[\w.-]+$/.test(key)) return res.status(400).json({ error: "bad key" });
+      const base = key.slice(6);
+      const type = /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image";
+      const ext = ((base.match(/\.([^.]+)$/) || [])[1] || "").toLowerCase();
+      const videoTypes = { mp4:"video/mp4", mov:"video/quicktime", m4v:"video/x-m4v", webm:"video/webm", "3gp":"video/3gpp", mkv:"video/x-matroska", avi:"video/x-msvideo", mpg:"video/mpeg", mpeg:"video/mpeg" };
+      const imageTypes = { jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp", gif:"image/gif", heic:"image/heic", heif:"image/heif" };
+      const contentType = (type === "video" ? videoTypes[ext] : imageTypes[ext]) || "application/octet-stream";
+      const safeName = base.replace(/[^\w.-]+/g, "_").slice(-120);
+      const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket, Key: key, ResponseContentType: contentType, ResponseContentDisposition: `attachment; filename="${safeName}"` }), { expiresIn: 900 });
+      return res.json({ url, name: safeName });
+    }
+
+    if (req.query.action === "favorite") { // b.on true adds hearts, false removes them
+      const keys = keysOf(okMedia);
+      if (!keys.length) return res.status(400).json({ error: "bad key" });
+      const cur = new Set(await getFavs());
+      keys.forEach((k) => (b.on ? cur.add(k) : cur.delete(k)));
+      await putFavs([...cur]);
+      return res.json({ done: keys.length });
+    }
+
+    if (req.query.action === "delete") { // moves to Recently deleted, kept for 30 days
+      const keys = keysOf(okMedia);
+      if (!keys.length) return res.status(400).json({ error: "bad key" });
+      const at = Date.now();
+      const r = await each(keys, async (k) => {
+        const base = k.slice(6);
+        await move(k, `trash/${at}~${base}`);
+        await move(`thumbs/${base}.jpg`, `trash-thumbs/${at}~${base}.jpg`).catch(() => {}); // a missing thumbnail is fine
+        // Keep generated playback copies with the deleted memory so restoring it restores the full memory.
+        await move(`compatible-v2/${base}.mp4`, `trash-compatible-v2/${at}~${base}.mp4`).catch(() => {});
+        await move(`compatible/${base}.mp4`, `trash-compatible/${at}~${base}.mp4`).catch(() => {});
+        return 1;
+      });
+      return res.json({ done: r.filter(Boolean).length });
+    }
+
+    if (req.query.action === "restore") {
+      const keys = keysOf(okTrash);
+      if (!keys.length) return res.status(400).json({ error: "bad key" });
+      const r = await each(keys, async (k) => {
+        const rest = k.slice(6), base = rest.slice(rest.indexOf("~") + 1);
+        await move(k, `media/${base}`);
+        await move(`trash-thumbs/${rest}.jpg`, `thumbs/${base}.jpg`).catch(() => {});
+        await move(`trash-compatible-v2/${rest}.mp4`, `compatible-v2/${base}.mp4`).catch(() => {});
+        await move(`trash-compatible/${rest}.mp4`, `compatible/${base}.mp4`).catch(() => {});
+        return 1;
+      });
+      return res.json({ done: r.filter(Boolean).length });
+    }
+
+    if (req.query.action === "erase") { // delete forever
+      const keys = keysOf(okTrash);
+      if (!keys.length) return res.status(400).json({ error: "bad key" });
+      const eraseObjects = [];
+      for (const k of keys) {
+        const rest = k.slice(6), cut = rest.indexOf("~"), base = cut >= 0 ? rest.slice(cut + 1) : rest;
+        eraseObjects.push(
+          { Key: k },
+          { Key: `trash-thumbs/${rest}.jpg` },
+          { Key: `trash-compatible-v2/${rest}.mp4` },
+          { Key: `trash-compatible/${rest}.mp4` },
+          // Also remove any older/orphaned generated copies left by previous versions.
+          { Key: `compatible-v2/${base}.mp4` },
+          { Key: `compatible/${base}.mp4` },
+          { Key: `thumbs/${base}.jpg` }
+        );
+      }
+      for (let i = 0; i < eraseObjects.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: eraseObjects.slice(i, i + 500) } }));
+      await dropFavs(keys.map((k) => k.slice(6).slice(k.slice(6).indexOf("~") + 1))).catch(() => {});
+      return res.json({ done: keys.length });
+    }
+    res.status(400).json({ error: "bad action" });
+  } catch (e) {
+    console.error("media API error", req.query.action, e && e.stack || e);
+    res.status(500).json({ error: "server", action: req.query.action || "unknown" });
+  }
+};
