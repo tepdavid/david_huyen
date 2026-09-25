@@ -136,6 +136,21 @@ const dropFavs = async (bases) => {
 
 const put = (Key, ContentType, ContentLength) => getSignedUrl(s3, new PutObjectCommand({ Bucket, Key, ContentType, ...(Number.isInteger(ContentLength) ? { ContentLength } : {}) }), { expiresIn: 900 });
 
+const hasUploadMarker = async (base) => {
+  const prefix = "_uploads/";
+  try {
+    const r = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: prefix, MaxKeys: 1000 }));
+    return (r.Contents || []).some((o) => {
+      if (!o || typeof o.Key !== "string" || !o.Key.startsWith(prefix)) return false;
+      const token = o.Key.slice(prefix.length);
+      const cut = token.indexOf("~");
+      return cut > 0 && token.slice(cut + 1) === base;
+    });
+  } catch {
+    return false;
+  }
+};
+
 module.exports = async (req, res) => {
   if (req.query.action === "ping") {
     return res.json({
@@ -316,6 +331,7 @@ module.exports = async (req, res) => {
       const key = String(b.key || "");
       if (!/^media\/[\w.-]+$/.test(key)) return res.status(400).json({ error: "bad key" });
       const base = key.slice(6);
+      if (!(await hasUploadMarker(base))) return res.status(409).json({ error: "upload_not_active" });
       const objects = [
         { Key: key },
         { Key: `compatible-v2/${base}.mp4` },
@@ -330,6 +346,7 @@ module.exports = async (req, res) => {
       const key = String(b.key || "");
       if (!/^media\/[\w.-]+$/.test(key) || !/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(key.slice(6))) return res.status(400).json({ error: "bad key" });
       const base = key.slice(6);
+      if (!(await hasUploadMarker(base))) return res.status(409).json({ error: "upload_not_active" });
       // The client converts the original bytes to H.264/AAC in WASM, then uploads this copy.
       const uploadKey = `compatible-v2/${base}.mp4`;
       const thumbKey = `thumbs/${base}.jpg`;
