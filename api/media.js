@@ -441,16 +441,17 @@ module.exports = async (req, res) => {
         return res.status(409).json({ error: "upload_size_mismatch" });
       }
 
+      const markerCreatedAt = Number(marker.createdAt);
+      if (!Number.isSafeInteger(markerCreatedAt) || markerCreatedAt <= 0 ||
+          markerCreatedAt > Date.now() + 5 * 60e3 || Date.now() - markerCreatedAt > 2 * 3600e3) {
+        return res.status(409).json({ error: "upload_expired" });
+      }
       if (/^video\//.test(marker.type || "")) {
-        let compatible = false;
-        for (const candidate of [`compatible-v2/${base}.mp4`, `compatible/${base}.mp4`]) {
-          try {
-            await s3.send(new HeadObjectCommand({ Bucket, Key: candidate }));
-            compatible = true;
-            break;
-          } catch {}
+        try {
+          await s3.send(new HeadObjectCommand({ Bucket, Key: `_staging/${token}/compatible.mp4` }));
+        } catch {
+          return res.status(409).json({ error: "video_conversion_incomplete" });
         }
-        if (!compatible) return res.status(409).json({ error: "video_conversion_incomplete" });
       }
 
       const stageMedia = "_staging/" + token + "/media";
