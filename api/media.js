@@ -282,9 +282,12 @@ module.exports = async (req, res) => {
           for (const o of uploadPage.Contents || []) {
             if (!o || typeof o.Key !== "string" || !o.Key.startsWith("_uploads/")) continue;
             const token = o.Key.slice(9), cut = token.indexOf("~"), at = Number(token.slice(0, cut)), base = cut >= 0 ? token.slice(cut + 1) : "";
-            if (at > 0 && base && uploadNow - at > 2 * 3600e3) orphan.push(
-              { Key: o.Key }, { Key: `media/${base}` }, { Key: `thumbs/${base}.jpg` },
-              { Key: `compatible-v2/${base}.mp4` }, { Key: `compatible/${base}.mp4` }
+            // Recovery cleanup must never delete active media. Uploads are staged until finalizeUpload commits them.
+            if (at > 0 && /^[\\w.-]+$/.test(base) && uploadNow - at > 2 * 3600e3) orphan.push(
+              { Key: o.Key },
+              { Key: `_staging/${token}/media` },
+              { Key: `_staging/${token}/thumb.jpg` },
+              { Key: `_staging/${token}/compatible.mp4` }
             );
           }
           uploadCursor = uploadPage.NextContinuationToken;
