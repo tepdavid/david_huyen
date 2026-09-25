@@ -439,12 +439,28 @@ module.exports = async (req, res) => {
         if (!compatible) return res.status(409).json({ error: "video_conversion_incomplete" });
       }
 
-      if (marker.thumb) { try { await s3.send(new HeadObjectCommand({ Bucket, Key: `_staging/${token}/thumb.jpg` })); } catch { return res.status(409).json({ error: "thumbnail_incomplete" }); } }
-      try { await s3.send(new HeadObjectCommand({ Bucket, Key: key })); return res.status(409).json({ error: "media_exists" }); } catch {}
-      await move(`_staging/${token}/media`, key);
-      if (marker.thumb) await move(`_staging/${token}/thumb.jpg`, `thumbs/${base}.jpg`);
-      if (/^video\//.test(marker.type || "")) await move(`_staging/${token}/compatible.mp4`, `compatible-v2/${base}.mp4`);
-      await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: `_uploads/${token}` }] } }));
+      const stageMedia = "_staging/" + token + "/media";
+      const stageThumb = "_staging/" + token + "/thumb.jpg";
+      const stageCompatible = "_staging/" + token + "/compatible.mp4";
+      const ensureCommitted = async (from, to, required = true) => {
+        let source = true;
+        try { await s3.send(new HeadObjectCommand({ Bucket, Key: from })); } catch { source = false; }
+        let destination = null;
+        try { destination = await s3.send(new HeadObjectCommand({ Bucket, Key: to })); } catch {}
+        if (destination) {
+          if (source) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: from }] } }));
+          return true;
+        }
+        if (!source) return !required;
+        await move(from, to);
+        return true;
+      };
+      if (!await ensureCommitted(stageMedia, key, true)) return res.status(409).json({ error: "upload_incomplete" });
+      if (marker.thumb && !await ensureCommitted(stageThumb, "thumbs/" + base + ".jpg", true))
+        return res.status(409).json({ error: "thumbnail_incomplete" });
+      if (/^video\//.test(marker.type || "") && !await ensureCommitted(stageCompatible, "compatible-v2/" + base + ".mp4", true))
+        return res.status(409).json({ error: "video_conversion_incomplete" });
+      await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: "_uploads/" + token }] } }));
       return res.json({ done: true });
     }
     const okMedia = (k) => /^media\/[\w.-]+$/.test(String(k));
