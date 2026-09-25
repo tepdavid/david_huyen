@@ -286,8 +286,8 @@ function draw() {
     });
   });
   if(other.length){const oi=other.map(i=>items[i]);h+=`<h3 class="otherHead" id="other-section">📦 Others <small>${countLabel(oi)}</small></h3><div class="grid">${other.map(tile).join("")}</div>`;}
-  if(renderLimit < items.length) h+=`<div style="text-align:center;padding:24px"><button id="loadMore" class="retry">Load more memories (${items.length-renderLimit} remaining)</button></div>`;
-  $("g").innerHTML=h; timeline(); spy();
+  if(renderLimit < items.length) h+=`<div id="loadMoreSentinel" style="height:1px;margin:1px 0" aria-hidden="true"></div>`;
+  $("g").innerHTML=h; timeline(); spy(); observeMore();
 }
 
 function timeline() {
@@ -379,13 +379,20 @@ async function show(i) {
   }
 }
 const close = () => { $("v").hidden = true; $("m").innerHTML = ""; if (cat === "fav") apply(); };
-$("g").addEventListener("click", e => {
-  if (e.target.closest("#loadMore")) {
+let loadMoreObserver = null;
+function observeMore() {
+  if (loadMoreObserver) loadMoreObserver.disconnect();
+  const sentinel = $("loadMoreSentinel");
+  if (!sentinel || renderLimit >= items.length) return;
+  loadMoreObserver = new IntersectionObserver(entries => {
+    if (!entries.some(x => x.isIntersecting)) return;
+    if (renderLimit >= items.length) return;
     renderLimit += 300;
     draw();
-    return;
-  }
-}, { capture: true });
+  }, { rootMargin: "900px 0px" });
+  loadMoreObserver.observe(sentinel);
+}
+
 $("g").onclick = e => {
   const hv = e.target.closest(".hv");
   if (hv) { const k = items[+hv.closest(".tile").dataset.i].key; setFav([k], !favs.has(k)); return; }
