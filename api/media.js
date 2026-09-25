@@ -188,6 +188,20 @@ module.exports = async (req, res) => {
       // requests focused on media metadata instead of repeating unrelated work.
       let trash = [], favs = [], storageBytes = 0;
       if (!cursor) {
+        // Browser uploads are marked until the client finishes conversion/finalization.
+        // If a tab is closed mid-upload, the marker becomes stale and its objects are reclaimed.
+        const uploadPage = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: "_uploads/", MaxKeys: 500 }));
+        const now = Date.now(), orphan = [];
+        for (const o of uploadPage.Contents || []) {
+          if (!o || typeof o.Key !== "string" || !o.Key.startsWith("_uploads/")) continue;
+          const token = o.Key.slice(9), cut = token.indexOf("~"), at = Number(token.slice(0, cut)), base = cut >= 0 ? token.slice(cut + 1) : "";
+          if (at > 0 && base && now - at > 2 * 3600e3) orphan.push(
+            { Key: o.Key }, { Key: `media/${base}` }, { Key: `thumbs/${base}.jpg` },
+            { Key: `compatible-v2/${base}.mp4` }, { Key: `compatible/${base}.mp4` }
+          );
+        }
+        for (let i = 0; i < orphan.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: orphan.slice(i, i + 500) } })).catch(() => {});
+
         const trashPage = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: "trash/", MaxKeys: 1000 }));
         const haveTrash = new Set((trashPage.Contents || []).map(o => o && o.Key).filter(Boolean));
         const now = Date.now(), stale = [], staleBases = [];
@@ -266,12 +280,28 @@ module.exports = async (req, res) => {
       if (!/^(image|video)\//.test(type) || !Number.isSafeInteger(size) || size <= 0 || size > 2e9) return res.status(400).json({ error: "bad file" });
       const name = String(b.name || "file").replace(/[^\w.-]+/g, "_").slice(-60);
       const base = `${Number(b.lastModified) || Date.now()}-${crypto.randomBytes(4).toString("hex")}-${name}`;
+      const key = `media/${base}`;
+      const uploadToken = `${Date.now()}~${base}`;
+      await s3.send(new PutObjectCommand({
+        Bucket, Key: `_uploads/${uploadToken}`,
+        Body: JSON.stringify({ key, type, size, createdAt: Date.now() }),
+        ContentType: "application/json"
+      }));
       return res.json({
-        key: `media/${base}`,
-        url: await put(`media/${base}`, type, size),
+        key,
+        uploadToken,
+        url: await put(key, type, size),
         thumbUrl: b.thumb ? await put(`thumbs/${base}.jpg`, "image/jpeg") : null,
         compatibleUrl: /^video\//.test(type) ? await put(`compatible-v2/${base}.mp4`, "video/mp4") : null,
       });
+    }
+    if (req.query.action === "finalizeUpload") {
+      const key = String(b.key || ""), token = String(b.uploadToken || "");
+      const base = key.slice(6);
+      if (!/^media\/[\w.-]+$/.test(key) || !/^\d+~[\w.-]+$/.test(token) || token.slice(token.indexOf("~") + 1) !== base)
+        return res.status(400).json({ error: "bad upload" });
+      await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: `_uploads/${token}` }] } }));
+      return res.json({ done: true });
     }
     const okMedia = (k) => /^media\/[\w.-]+$/.test(String(k));
     const okTrash = (k) => /^trash\/\d+~[\w.-]+$/.test(String(k));
