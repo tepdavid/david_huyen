@@ -485,6 +485,16 @@ module.exports = async (req, res) => {
       if (!keys.length) return res.status(400).json({ error: "bad key" });
       const r = await each(keys, async (k) => {
         const rest = k.slice(6), base = rest.slice(rest.indexOf("~") + 1);
+        // Never overwrite an active object (or orphaned companion) during restore.
+        const destinations = [`media/${base}`, `thumbs/${base}.jpg`, `compatible-v2/${base}.mp4`, `compatible/${base}.mp4`];
+        for (const dest of destinations) {
+          try {
+            await s3.send(new HeadObjectCommand({ Bucket, Key: dest }));
+            throw new Error("restore_destination_exists");
+          } catch (e) {
+            if (e && e.message === "restore_destination_exists") throw e;
+          }
+        }
         await move(k, `media/${base}`);
         await moveOptional(`trash-thumbs/${rest}.jpg`, `thumbs/${base}.jpg`);
         await moveOptional(`trash-compatible-v2/${rest}.mp4`, `compatible-v2/${base}.mp4`);
