@@ -143,28 +143,43 @@ module.exports = async (req, res) => {
     }
 
     if (req.query.action === "list") {
-      const all = []; let tok;
+      // Keep the full-bucket scan, but process each page immediately instead of retaining every
+      // R2 object in memory. R2 ListObjectsV2 is paginated (up to 1,000 keys per page).
+      const mediaObjects = [], trashObjects = [], have = new Set();
+      let storageBytes = 0, tok;
       do {
-        const r = await s3.send(new ListObjectsV2Command({ Bucket, ContinuationToken: tok }));
-        all.push(...(r.Contents || []));
+        const r = await s3.send(new ListObjectsV2Command({ Bucket, ContinuationToken: tok, MaxKeys: 1000 }));
+        for (const o of (r.Contents || [])) {
+          if (!o || typeof o.Key !== "string") continue;
+          have.add(o.Key);
+          if (o.Key.startsWith("media/") && o.Key.length > 6) mediaObjects.push(o);
+          else if (o.Key.startsWith("trash/")) trashObjects.push(o);
+          const n = Number(o.Size);
+          if (Number.isFinite(n) && n > 0) storageBytes += n;
+        }
         tok = r.NextContinuationToken;
       } while (tok);
-      const have = new Set(all.map((o) => o.Key));
-      const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
-      const mediaObjects = all.filter((o) => typeof o.Key === "string" && o.Key.startsWith("media/") && o.Key.length > 6);
+
+      const kindOf = (base) => (/\\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
       const itemResults = await each(mediaObjects, async (o) => {
         const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatibleV2 = `compatible-v2/${base}.mp4`, compatibleV1 = `compatible/${base}.mp4`;
         const type = kindOf(base);
         // Prefer a browser-friendly H.264/AAC MP4 when a compatible copy has been created.
         const compatible = type === "video" && (have.has(compatibleV2) || have.has(compatibleV1)) ? (have.has(compatibleV2) ? compatibleV2 : compatibleV1) : null;
         const playKey = compatible || o.Key;
-        return { key: o.Key, size: Number(o.Size) || 0, date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0, type, url: await sign(playKey), sourceUrl: type === "video" ? await sign(o.Key) : null, thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key, timeline: base.startsWith("other-") ? "other" : "date" };
+        const [url, sourceUrl, thumb] = await Promise.all([
+          sign(playKey),
+          type === "video" ? sign(o.Key) : Promise.resolve(null),
+          have.has(tk) ? sign(tk) : Promise.resolve(null)
+        ]);
+        return { key: o.Key, size: Number(o.Size) || 0, date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0, type, url, sourceUrl, thumb, compatible: playKey !== o.Key, timeline: base.startsWith("other-") ? "other" : "date" };
       }, 8);
       const items = itemResults.filter(Boolean);
       items.sort((x, y) => y.date - x.date);
+
       // Recently deleted lives under trash/<deletedAt>~<name>. Anything older than 30 days is erased here.
       const now = Date.now(), stale = [], staleBases = [], trash = [];
-      for (const o of all.filter((o) => o.Key.startsWith("trash/"))) {
+      for (const o of trashObjects) {
         const rest = o.Key.slice(6), cut = rest.indexOf("~"), at = Number(rest.slice(0, cut)), base = rest.slice(cut + 1), tk = `trash-thumbs/${rest}.jpg`;
         if (!(at > 0)) continue;
         if (now - at > 30 * 864e5) {
@@ -172,21 +187,19 @@ module.exports = async (req, res) => {
           staleBases.push(base); continue;
         }
         try {
-          trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url: await sign(o.Key), thumb: have.has(tk) ? await sign(tk) : null });
+          const [url, thumb] = await Promise.all([
+            sign(o.Key),
+            have.has(tk) ? sign(tk) : Promise.resolve(null)
+          ]);
+          trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url, thumb });
         } catch {}
       }
       for (let i = 0; i < stale.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: stale.slice(i, i + 500).map((Key) => ({ Key })) } }));
       if (staleBases.length) await dropFavs(staleBases).catch(() => {});
       trash.sort((x, y) => y.deletedAt - x.deletedAt);
       const favs = (await getFavs().catch(() => [])).filter((k) => have.has(k));
-      let storageBytes = 0;
-      for (const o of all) {
-        const n = Number(o && o.Size);
-        if (Number.isFinite(n) && n > 0) storageBytes += n;
-      }
       return res.json({ items, trash, favs, storageBytes });
     }
-
     if (req.query.action === "cleanupUpload") {
       const key = String(b.key || "");
       if (!/^media\/[\w.-]+$/.test(key)) return res.status(400).json({ error: "bad key" });
