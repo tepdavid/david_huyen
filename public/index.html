@@ -179,6 +179,7 @@ if (tg) {
 }
 const $ = id => document.getElementById(id);
 const live = () => tg && tg.initData;
+const serverMode = () => live() || !PREVIEW;
 const browser = () => !live();
 let all = [], items = [], idx = 0, tt, cat = "image", lastCat = "image", session = "", favs = new Set();
 $("t").textContent = TITLE; $("sub").textContent = SUBTITLE;
@@ -385,7 +386,7 @@ $("mSel").onchange = $("ySel").onchange = () => { document.querySelector('input[
 $("shC").onclick = () => { $("sheet").hidden = true; pending = []; };
 $("shU").onclick = () => {
   $("sheet").hidden = true;
-  if (!live()) { toast("Preview mode: uploads work inside Telegram"); pending = []; return; }
+  if (!serverMode()) { toast("Preview mode: uploads work inside Telegram"); pending = []; return; }
   const pick = document.querySelector("input[name=dm]:checked").value === "pick";
   upload(pending, pick ? { y: +$("ySel").value, m: +$("mSel").value } : null); pending = [];
 };
@@ -465,13 +466,13 @@ let selecting = false, trashItems = [];
 const sel = new Set(), tsel = new Set();
 const ask = msg => new Promise(res => (tg && tg.isVersionAtLeast && tg.isVersionAtLeast("6.2") && tg.showConfirm) ? tg.showConfirm(msg, res) : res(confirm(msg)));
 async function act(action, keys) {
-  if (live()) return api(action, { keys });
+  if (serverMode()) return api(action, { keys });
   const ks = new Set(keys); // preview mode: everything stays in memory
   if (action === "delete") { const gone = all.filter(i => ks.has(i.key)); all = all.filter(i => !ks.has(i.key)); trashItems.push(...gone.map(i => ({ ...i, deletedAt: Date.now() }))); }
   else if (action === "restore") { all.push(...trashItems.filter(i => ks.has(i.key))); trashItems = trashItems.filter(i => !ks.has(i.key)); all.sort((a, b) => b.date - a.date); }
   else if (action === "erase") trashItems = trashItems.filter(i => !ks.has(i.key));
 }
-const refresh = async () => { if (live()) await load(); else apply(); };
+const refresh = async () => { if (serverMode()) await load(); else apply(); };
 const selCount = () => { $("selN").textContent = sel.size ? `${sel.size} selected` : "Tap photos to select"; };
 function setSel(on) {
   selecting = on; if (!on) sel.clear();
@@ -534,7 +535,7 @@ function wrong(msg) {
 async function tryPin() {
   checking = true;
   try {
-    if (!live()) { // preview mode has no server
+    if (!serverMode()) { // design preview mode has no server
       if (PREVIEW && pin === "1234") { session = "demo"; pin = ""; $("lock").hidden = true; } else wrong("Wrong passcode. In this preview it is 1234.");
       return;
     }
@@ -578,7 +579,7 @@ function paintFavs() {
 async function setFav(keys, on) {
   keys.forEach(k => on ? favs.add(k) : favs.delete(k));
   paintFavs();
-  try { if (live()) await api("favorite", { keys, on }); }
+  try { if (serverMode()) await api("favorite", { keys, on }); }
   catch (e) { if (e.message === "locked") return; keys.forEach(k => on ? favs.delete(k) : favs.add(k)); paintFavs(); toast("Couldn't update favorites. Try again."); }
 }
 $("fv").onclick = () => { const k = items[idx].key; setFav([k], !favs.has(k)); };
