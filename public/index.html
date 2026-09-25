@@ -320,14 +320,30 @@ function draw() {
 }
 
 function timeline() {
-  const { ys } = calendar();
+  const { ys, stats } = calendar();
   const years = Object.keys(ys).sort((a, b) => b - a);
   if (!years.length) { $("tl").innerHTML = ""; return; }
   if (!ys[selY]) selY = +years[0];
-  const n = y => countLabel(all.filter(i => i.timeline !== "other" && new Date(i.date).getFullYear() === +y));
+  const n = y => {
+    const st = stats[y] || { photos: 0, videos: 0 };
+    return (st.photos || 0) + (st.videos || 0);
+  };
   const months = Array.from({ length: 12 }, (_, m) => m);
   $("tl").innerHTML = `<div class="chips">${years.map(y => `<button class="chip ${y == selY ? "on" : ""}" data-y="${y}">${yi(+y)} ${y}${n(y) ? ` <small>${n(y)}</small>` : ""}</button>`).join("")}</div>` +
     `<div class="chips mo">${months.map(m => `<button class="chip ${currentMonth === m ? "on" : ""} ${ys[selY]?.[m] ? "" : "empty"}" data-m="${selY}-${m}">${mi(selY, m)} ${mname(selY, m)}</button>`).join("")}</div>`;
+}
+function revealTimelineTarget(y, m) {
+  const target = items.findIndex(it => {
+    if (it.timeline === "other") return false;
+    const d = new Date(it.date);
+    return d.getFullYear() === y && (m == null || d.getMonth() === m);
+  });
+  if (target < 0) return false;
+  if (target >= renderLimit) {
+    renderLimit = Math.min(items.length, Math.max(renderLimit + 300, target + 1));
+    draw();
+  }
+  return true;
 }
 const satPx = () => parseFloat(getComputedStyle($("top")).top) || 0; // how far the pinned bar sits below the top edge
 function spy() {
@@ -349,15 +365,26 @@ $("tl").onclick = e => {
     const first = Object.keys(calendar().ys[selY] || {}).map(Number).sort((a, b) => a - b)[0];
     currentMonth = first ?? null;
     timeline();
-    const t = document.getElementById("y-" + selY);
-    if (t) t.scrollIntoView({ behavior: "smooth" });
+    if (!revealTimelineTarget(selY, currentMonth)) {
+      toast(`No ${what} in ${selY} yet`);
+      return;
+    }
+    requestAnimationFrame(() => {
+      const t = document.getElementById("y-" + selY);
+      if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
   else if (b.dataset.m) {
     const [y, m] = b.dataset.m.split("-").map(Number);
     selY = y; currentMonth = m; timeline();
-    const t = document.getElementById("m-" + b.dataset.m);
-    if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
-    else toast(`No ${what} in ${mname(y, m, true)} yet`);
+    if (!revealTimelineTarget(y, m)) {
+      toast(`No ${what} in ${mname(y, m, true)} yet`);
+      return;
+    }
+    requestAnimationFrame(() => {
+      const t = document.getElementById("m-" + b.dataset.m);
+      if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 };
 async function shareCurrent(){
