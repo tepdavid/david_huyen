@@ -31,3 +31,11 @@ Deploy, then open `t.me/YOUR_BOT/APP_NAME` and send that link only to her.
 - The bucket is private. Photos load through links that expire after 1 hour.
 - Files are stored on Cloudflare, not end-to-end encrypted. Don't put anything there you wouldn't trust a cloud provider with.
 - Keep backups of originals. Deleting in the app deletes for both of you.
+
+## Passcode (4 digits)
+Add one more Environment Variable in Vercel: `ALBUM_PIN` set to exactly four digits, for example `4826`, then redeploy.
+- The app asks for it every time it opens, and again after it has been in the background for a minute.
+- The server checks it, so it can't be skipped by editing the app. Five wrong tries lock the album for 15 minutes.
+- To change the passcode, edit `ALBUM_PIN` and redeploy. Everyone is asked again.
+- If `ALBUM_PIN` isn't set, there is no passcode screen. `/api/media?action=ping` shows `"pinSet":true` when it works.
+- It is a second lock on top of Telegram's own login and the allowed-accounts list, not a replacement for them.
