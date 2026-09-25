@@ -453,6 +453,7 @@ async function loadNextPage() {
   if (listLoading || listDone) return;
   listLoading = true;
   try {
+    const previousLimit = renderLimit;
     const r = await api("list", { cursor: listCursor });
     if (r.items?.length) all = all.concat(r.items);
     listCursor = r.nextCursor || null;
@@ -461,6 +462,8 @@ async function loadNextPage() {
     if (r.trash?.length) trashItems = r.trash;
     if (r.favs?.length || !listCursor) favs = new Set(r.favs || []);
     apply();
+    renderLimit = Math.min(items.length, Math.max(300, previousLimit + 300));
+    draw();
     if (listDone) updateStorage(storageLoadedBytes);
   } catch (e) {
     if (e.message === "locked") return;
