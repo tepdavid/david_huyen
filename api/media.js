@@ -291,23 +291,32 @@ module.exports = async (req, res) => {
         } while (uploadCursor);
         for (let i = 0; i < orphan.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: orphan.slice(i, i + 500) } })).catch(() => {});
 
-        const trashPage = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: "trash/", MaxKeys: 1000 }));
         const now = Date.now(), stale = [], staleBases = [];
-        for (const o of (trashPage.Contents || [])) {
-          if (!o || typeof o.Key !== "string") continue;
-          const rest = o.Key.slice(6), cut = rest.indexOf("~"), at = Number(rest.slice(0, cut)), base = rest.slice(cut + 1), tk = `trash-thumbs/${rest}.jpg`;
-          if (!(at > 0)) continue;
-          if (now - at > 30 * 864e5) {
-            stale.push(o.Key, tk, `trash-compatible-v2/${rest}.mp4`, `trash-compatible/${rest}.mp4`, `compatible-v2/${base}.mp4`, `compatible/${base}.mp4`, `thumbs/${base}.jpg`);
-            staleBases.push(base); continue;
+        let trashCursor;
+        do {
+          const trashPage = await s3.send(new ListObjectsV2Command({
+            Bucket, Prefix: "trash/", ContinuationToken: trashCursor, MaxKeys: 1000
+          }));
+          for (const o of trashPage.Contents || []) {
+            if (!o || typeof o.Key !== "string") continue;
+            const rest = o.Key.slice(6), cut = rest.indexOf("~"), at = Number(rest.slice(0, cut)), base = rest.slice(cut + 1), tk = `trash-thumbs/${rest}.jpg`;
+            if (!(at > 0)) continue;
+            if (now - at > 30 * 864e5) {
+              stale.push(o.Key, tk, `trash-compatible-v2/${rest}.mp4`, `trash-compatible/${rest}.mp4`, `compatible-v2/${base}.mp4`, `compatible/${base}.mp4`, `thumbs/${base}.jpg`);
+              staleBases.push(base);
+              continue;
+            }
+            if (trash.length < 1000) {
+              try {
+                const url = await sign(o.Key);
+                let thumb = null;
+                try { thumb = await sign(tk); } catch {}
+                trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url, thumb });
+              } catch {}
+            }
           }
-          try {
-            const url = await sign(o.Key);
-            let thumb = null;
-            try { thumb = await sign(tk); } catch {}
-            trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url, thumb });
-          } catch {}
-        }
+          trashCursor = trashPage.NextContinuationToken;
+        } while (trashCursor);
         for (let i = 0; i < stale.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: stale.slice(i, i + 500).map(Key => ({ Key })) } }));
         if (staleBases.length) await dropFavs(staleBases).catch(() => {});
         trash.sort((x, y) => y.deletedAt - x.deletedAt);
