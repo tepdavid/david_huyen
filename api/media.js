@@ -471,13 +471,17 @@ module.exports = async (req, res) => {
       const r = await each(keys, async (k) => {
         const base = k.slice(6);
         await move(k, `trash/${at}~${base}`);
-        await moveOptional(`thumbs/${base}.jpg`, `trash-thumbs/${at}~${base}.jpg`); // a missing thumbnail is fine
+        const thumbMoved = await moveOptional(`thumbs/${base}.jpg`, `trash-thumbs/${at}~${base}.jpg`);
         // Keep generated playback copies with the deleted memory so restoring it restores the full memory.
-        await moveOptional(`compatible-v2/${base}.mp4`, `trash-compatible-v2/${at}~${base}.mp4`);
-        await moveOptional(`compatible/${base}.mp4`, `trash-compatible/${at}~${base}.mp4`);
-        return 1;
+        const compatibleV2Moved = await moveOptional(`compatible-v2/${base}.mp4`, `trash-compatible-v2/${at}~${base}.mp4`);
+        const compatibleMoved = await moveOptional(`compatible/${base}.mp4`, `trash-compatible/${at}~${base}.mp4`);
+        if (!thumbMoved || !compatibleV2Moved || !compatibleMoved) {
+          console.warn("partial delete companions", { key: k, thumbMoved, compatibleV2Moved, compatibleMoved });
+        }
+        return { key: k, partial: !thumbMoved || !compatibleV2Moved || !compatibleMoved };
       });
-      return res.json({ done: r.filter(Boolean).length });
+      const results = r.filter(Boolean), partial = results.filter((x) => x.partial).map((x) => x.key);
+      return res.json({ done: results.length, partial: partial.length, partialKeys: partial });
     }
 
     if (req.query.action === "restore") {
