@@ -369,8 +369,17 @@ module.exports = async (req, res) => {
     if (req.query.action === "cleanupUpload") {
       const key = String(b.key || ""), token = String(b.uploadToken || "");
       if (!/^media\/[\w.-]+$/.test(key) || !/^\d+~[\w.-]+$/.test(token) || token.slice(token.indexOf("~") + 1) !== key.slice(6)) return res.status(400).json({ error: "bad key" });
-      const base = key.slice(6);
-      if (!(await hasUploadMarker(base))) return res.status(409).json({ error: "upload_not_active" });
+      let marker;
+      try {
+        const mr = await s3.send(new GetObjectCommand({ Bucket, Key: `_uploads/${token}` }));
+        marker = JSON.parse(await mr.Body.transformToString());
+      } catch {
+        return res.status(409).json({ error: "upload_not_active" });
+      }
+      if (!marker || marker.key !== key || !/^(image|video)\\//.test(String(marker.type || "")) ||
+          !Number.isSafeInteger(Number(marker.size)) || Number(marker.size) <= 0) {
+        return res.status(409).json({ error: "bad_upload_marker" });
+      }
       const objects = [
         { Key: `_uploads/${token}` },
         { Key: `_staging/${token}/media` },
