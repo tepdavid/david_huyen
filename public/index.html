@@ -14,7 +14,9 @@ box-sizing:border-box;padding-top:var(--sat);padding-bottom:env(safe-area-inset-
 body{background:var(--bg);color:var(--ink);font:15px/1.4 system-ui,-apple-system,"Segoe UI",sans-serif;min-height:100%}
 button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
 button:focus-visible,label:focus-within{outline:2px solid var(--acc);outline-offset:2px}
-header{padding:22px 18px 8px;display:flex;justify-content:space-between;align-items:baseline}
+header{position:relative;min-height:250px;padding:calc(18px + var(--sat)) 18px 18px;display:flex;flex-direction:column;justify-content:flex-end;align-items:center;text-align:center;gap:3px;overflow:hidden;background:linear-gradient(to bottom,rgba(0,0,0,.08),rgba(0,0,0,.18)),url("/assets/memories-cover.png") center 58%/cover no-repeat;border-bottom:1px solid rgba(255,255,255,.45);box-shadow:0 10px 32px rgba(0,0,0,.12)}
+header::before{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(10,18,25,.02) 30%,rgba(10,18,25,.58) 100%);pointer-events:none}
+header>*{position:relative;z-index:1;text-shadow:0 2px 12px rgba(0,0,0,.55)}
 h1{font:italic 700 30px Georgia,"Times New Roman",serif;color:var(--acc)}
 #n{color:var(--mute);font-size:13px}
 h2{font:600 14px Georgia,serif;color:var(--mute);padding:18px 18px 8px}
@@ -80,10 +82,10 @@ select{flex:1;font:inherit;color:var(--ink);background:var(--glass);border:1px s
 .acts{display:flex;gap:10px}.acts button{flex:1;padding:12px;border-radius:999px;background:var(--glass);border:1px solid var(--edge)}
 .acts .go{background:var(--acc);color:var(--on);border-color:transparent;font-weight:600}
 .retry{margin-left:8px;padding:5px 14px;border-radius:999px;background:var(--acc);color:var(--on);font-size:12px}
-header{flex-direction:column;align-items:center;text-align:center;gap:2px;padding:24px 18px 10px}
-h1{font-size:32px}
-#sub{font:italic 16px Georgia,"Times New Roman",serif;color:var(--mute)}
-#n{font-size:12px;margin-top:4px}#storage{font-size:12px;color:var(--mute);margin-top:2px}
+header{min-height:250px;flex-direction:column;align-items:center;text-align:center;gap:3px;padding:calc(18px + var(--sat)) 18px 18px}
+h1{font-size:32px;color:#fff}
+#sub{font:italic 16px Georgia,"Times New Roman",serif;color:#fff} 
+#n{font-size:12px;margin-top:4px;color:#fff}#storage{font-size:12px;color:#fff;margin-top:2px}
 .tools{display:flex;gap:6px;margin-top:8px}
 .tools button{padding:7px 14px;border-radius:999px;font-size:13px;background:var(--glass);border:1px solid var(--edge);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
 #selbar,.trbar{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:26;display:flex;gap:8px;align-items:center;padding:10px;border-radius:22px;background:color-mix(in srgb,var(--card) 84%,transparent);border:1px solid var(--edge);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%)}
