@@ -87,11 +87,7 @@ const put = (Key, ContentType) => getSignedUrl(s3, new PutObjectCommand({ Bucket
 module.exports = async (req, res) => {
   if (req.query.action === "ping") { // open /api/media?action=ping in a browser to confirm what is deployed
     const tk = (E.BOT_TOKEN || "").trim().replace(/^["']+|["']+$/g, "");
-    return res.json({ version: 7, pinSet: /^\d{4}$/.test(R("ALBUM_PIN")), problem: configProblem() || "none", hasToken: !!tk, botId: tk.split(":")[0] || null, tokenLength: tk.length,
-      allowedIds: (E.ALLOWED_USER_IDS || "").split(",").filter((s) => s.trim()).length,
-      hasStorage: !!(R("R2_ACCOUNT_ID") && R("R2_ACCESS_KEY_ID") && R("R2_SECRET_ACCESS_KEY") && R("R2_BUCKET")),
-      bucket: Bucket, accountIdOk: /^[0-9a-f]{32}$/i.test(ACCT),
-      lengths: { accountId: ACCT.length, accessKeyId: R("R2_ACCESS_KEY_ID").length, secret: R("R2_SECRET_ACCESS_KEY").length } });
+    return res.json({ version: 7, pinSet: /^\\d{4}$/.test(R("ALBUM_PIN")), problem: configProblem() || "none", hasToken: !!tk,\n      allowedIds: (E.ALLOWED_USER_IDS || "").split(",").filter((s) => s.trim()).length,\n      hasStorage: !!(R("R2_ACCOUNT_ID") && R("R2_ACCESS_KEY_ID") && R("R2_SECRET_ACCESS_KEY") && R("R2_BUCKET")),\n      accountIdOk: /^[0-9a-f]{32}$/i.test(ACCT) });
   }
   if (req.method !== "POST") return res.status(405).end();
   const h = req.headers.authorization || "";
