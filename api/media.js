@@ -46,7 +46,17 @@ const sign = (Key) => getSignedUrl(s3, new GetObjectCommand({ Bucket, Key }), { 
 const enc = (k) => encodeURIComponent(k); // CopySource must be URL-encoded, including slashes in the object key
 // Copy first, delete the original only if the copy worked, so a failure never loses a file
 const move = async (from, to) => {
+  if (from === to) return;
+  // Treat an already-copied destination as a successful move. This makes retries
+  // safe after a copy succeeds but the source deletion fails.
+  try {
+    await s3.send(new HeadObjectCommand({ Bucket, Key: to }));
+    await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: from }] } }));
+    return;
+  } catch {}
   await s3.send(new CopyObjectCommand({ Bucket, CopySource: `${Bucket}/${enc(from)}`, Key: to }));
+  // Verify the destination exists before deleting the only source copy.
+  await s3.send(new HeadObjectCommand({ Bucket, Key: to }));
   await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: from }] } }));
 };
 // Optional companion objects (thumbnails/compatible copies) get a short retry window.
