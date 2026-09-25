@@ -186,7 +186,7 @@ module.exports = async (req, res) => {
     let good = false;
     if (browserMode) {
       const [kind, exp, sig = "", ...extra] = raw.split(".");
-      if (extra.length === 0 && kind === "web" && /^\\d+$/.test(exp) && Number(exp) > Date.now() && /^[0-9a-f]{64}$/.test(sig)) {
+      if (extra.length === 0 && kind === "web" && /^\d+$/.test(exp) && Number(exp) > Date.now() && /^[0-9a-f]{64}$/.test(sig)) {
         const expected = mac(exp, "web");
         good = crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
       }
