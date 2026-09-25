@@ -696,7 +696,7 @@ async function upload(files, when) {
           try { const vthumb = await makeVideoThumb(compatible); if (vthumb && r.thumbUrl) await putX(r.thumbUrl, vthumb, "image/jpeg"); } catch (e) { console.warn("Video thumbnail generation failed", e); }
         } catch (e) {
           // Never leave an original that the app cannot play directly. Conversion happens at upload time only.
-          try { await api("cleanupUpload", { key: r.key }); } catch {}
+          try { await api("cleanupUpload", { key: r.key, uploadToken: r.uploadToken }); } catch {}
           throw new Error("Video conversion failed. Please try uploading the video again.");
         }
       }
