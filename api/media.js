@@ -190,6 +190,20 @@ module.exports = async (req, res) => {
       return res.json({ items, trash, favs, storageBytes });
     }
 
+    if (req.query.action === "cleanupUpload") {
+      const key = String(b.key || "");
+      if (!/^media\/[\w.-]+$/.test(key)) return res.status(400).json({ error: "bad key" });
+      const base = key.slice(6);
+      const objects = [
+        { Key: key },
+        { Key: `compatible-v2/${base}.mp4` },
+        { Key: `compatible/${base}.mp4` },
+        { Key: `thumbs/${base}.jpg` }
+      ];
+      await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: objects } }));
+      return res.json({ done: true });
+    }
+
     if (req.query.action === "compatible") {
       const key = String(b.key || "");
       if (!/^media\/[\w.-]+$/.test(key) || !/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(key.slice(6))) return res.status(400).json({ error: "bad key" });

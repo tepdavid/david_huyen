@@ -337,25 +337,16 @@ function show(i) {
   const it = items[idx];
   if (it.type === "video" && !it.url.startsWith("data:")) {
     const poster = it.thumb ? ` poster="${it.thumb}"` : "";
-    $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata"></video>`;
-    const v = $("m").querySelector("video");
-    let repairing = false;
-    const repairIfNeeded = async () => {
-      if (repairing || !it.sourceUrl) return;
-      repairing = true;
-      $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>Preparing this video for your device…</p><small>The original is safe. This creates a browser-compatible copy once, then uses it for playback.</small></div>`;
-      try {
-        const url = await repairVideo(it);
-        $("m").innerHTML = `<video src="${url}"${it.thumb ? ` poster="${it.thumb}"` : ""} controls playsinline preload="metadata" autoplay></video>`;
-        const nv = $("m").querySelector("video");
-        nv.addEventListener("error", () => { if (it.thumb) $("m").innerHTML = `<div class="vfail"><img src="${it.thumb}" alt=""><p>This video could not be converted for this browser.</p></div>`; }, { once: true });
-      } catch (e) {
-        $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be prepared for this browser.</p><small>Please try the video again. Your memory has not been deleted.</small></div>`;
-      }
-    };
-    v.addEventListener("error", repairIfNeeded, { once: true });
-    v.addEventListener("loadedmetadata", () => { if (!v.videoWidth || !v.videoHeight) setTimeout(repairIfNeeded, 500); }, { once: true });
-    setTimeout(() => { if (!repairing && (!v.videoWidth || !v.videoHeight)) repairIfNeeded(); }, 1200);
+    // Playback is always direct. Conversion is done only during upload, never when a memory is opened.
+    if (it.compatible) {
+      $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
+      const v = $("m").querySelector("video");
+      v.addEventListener("error", () => {
+        $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be played.</p><small>The browser-compatible video copy is unavailable. Please upload the video again.</small></div>`;
+      }, { once: true });
+    } else {
+      $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video is not ready for playback.</p><small>Please upload this video again. No conversion is done while viewing.</small></div>`;
+    }
   } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
   $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   $("v").hidden = false;
@@ -525,23 +516,6 @@ async function makeVideoThumb(videoBlob) {
     return new Blob([data.buffer], { type: "image/jpeg" });
   } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
 }
-async function repairVideo(it) {
-  if (!it || it.type !== "video" || !it.sourceUrl) throw new Error("Original video unavailable");
-  const resp = await fetch(it.sourceUrl, { cache: "no-store" });
-  if (!resp.ok) throw new Error("Could not read the original video");
-  const blob = await resp.blob();
-  const file = new File([blob], (it.key.split("/").pop() || "video.mp4"), { type: blob.type || guessType(it.key) || "video/mp4" });
-  const compatible = await makeCompatibleVideo(file);
-  const r = await api("compatible", { key: it.key });
-  await putX(r.uploadUrl, compatible, "video/mp4");
-  try {
-    const thumb = await makeVideoThumb(compatible);
-    if (thumb && r.thumbUrl) await putX(r.thumbUrl, thumb, "image/jpeg");
-    if (thumb) it.thumb = URL.createObjectURL(thumb);
-  } catch (e) { console.warn("Video thumbnail generation failed", e); }
-  it.url = r.playUrl; it.compatible = true;
-  return r.playUrl;
-}
 let busy = false;
 async function upload(files, when) {
   busy = true; if (tg && tg.enableClosingConfirmation) tg.enableClosingConfirmation();
@@ -559,14 +533,17 @@ async function upload(files, when) {
       await putX(r.url, f, type, n => { sent[i] = n; show(); });
       if (th && r.thumbUrl) { try { await put(r.thumbUrl, th, "image/jpeg"); } catch {} }
       if (isVideo && r.compatibleUrl) {
+        show();
         try {
-          show();
           const compatible = await makeCompatibleVideo(f, p => { sent[i] = Math.max(sent[i], f.size + Math.round(f.size * p)); show(); });
-          if (compatible) {
-            await putX(r.compatibleUrl, compatible, "video/mp4");
-            try { const vthumb = await makeVideoThumb(compatible); if (vthumb && r.thumbUrl) await putX(r.thumbUrl, vthumb, "image/jpeg"); } catch (e) { console.warn("Video thumbnail generation failed", e); }
-          }
-        } catch (e) { console.warn("Compatible video copy failed", e); }
+          if (!compatible) throw new Error("Video conversion produced no output");
+          await putX(r.compatibleUrl, compatible, "video/mp4");
+          try { const vthumb = await makeVideoThumb(compatible); if (vthumb && r.thumbUrl) await putX(r.thumbUrl, vthumb, "image/jpeg"); } catch (e) { console.warn("Video thumbnail generation failed", e); }
+        } catch (e) {
+          // Never leave an original that the app cannot play directly. Conversion happens at upload time only.
+          try { await api("cleanupUpload", { key: r.key }); } catch {}
+          throw new Error("Video conversion failed. Please try uploading the video again.");
+        }
       }
     } catch (e) { errs.push(e); failed.push(f); }
     sent[i] = files[i].size; done++; show();
