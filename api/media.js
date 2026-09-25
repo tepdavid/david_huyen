@@ -91,7 +91,7 @@ module.exports = async (req, res) => {
       configured: {
         telegram: !!R("BOT_TOKEN") && (E.ALLOWED_USER_IDS || "").split(",").some(s => s.trim()),
         storage: !!(R("R2_ACCOUNT_ID") && R("R2_ACCESS_KEY_ID") && R("R2_SECRET_ACCESS_KEY") && R("R2_BUCKET")),
-        browserPin: /^\\d{4}$/.test(R("ALBUM_PIN"))
+        browserPin: /^\d{4}$/.test(R("ALBUM_PIN"))
       }
     });
   }
