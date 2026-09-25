@@ -51,7 +51,7 @@ async function thumb(file, video) {
   for (const [n, f] of files.entries()) {
     const st = fs.statSync(f), sig = `${f}|${st.size}|${st.mtimeMs}`;
     const prior = done[sig];
-    if (prior === true || (prior && typeof prior === "object" && (!TYPES[path.extname(f).slice(1).toLowerCase()] || (!TYPES[path.extname(f).slice(1).toLowerCase()].startsWith("video") || prior.compatible)))) { skipped++; continue; }
+    if (prior === true || (prior && typeof prior === "object" && (!TYPES[path.extname(f).slice(1).toLowerCase()] || (!TYPES[path.extname(f).slice(1).toLowerCase()].startsWith("video") || (prior.compatible && prior.thumb))))) { skipped++; continue; }
     const type = TYPES[path.extname(f).slice(1).toLowerCase()], video = type.startsWith("video");
     try {
       let ts = st.mtimeMs;
