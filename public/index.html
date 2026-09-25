@@ -39,12 +39,15 @@ h2{font:600 14px Georgia,serif;color:var(--mute);padding:18px 18px 8px}
 .seg button{flex:1;padding:8px;border-radius:999px;font-size:14px;color:var(--mute)}
 .seg .on{background:var(--acc);color:var(--on)}
 .seg small{opacity:.8;margin-left:4px}
-.chips{display:flex;gap:8px;overflow-x:auto;padding:3px 0;scrollbar-width:none}
-.chip{flex:none;padding:6px 14px;border-radius:999px;background:var(--card);font-size:13px;color:var(--mute)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;min-height:42px;padding:7px 16px;border-radius:999px;background:var(--card);font-size:15px;color:var(--mute);white-space:nowrap}
 .chip.on{background:var(--acc);color:var(--on)}
 .chip small{opacity:.75;margin-left:5px}
+.chips.mo{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;overflow:visible}
+.chips.mo .chip{min-width:0;padding:7px 4px;font-size:13px;text-align:center}
 .yr{font:italic 700 28px Georgia,serif;color:var(--acc);padding:20px 18px 0}
-h2[id],.yr{scroll-margin-top:calc(255px + var(--sat))}
+h2[id],.yr{scroll-margin-top:calc(270px + var(--sat))}
 /* Liquid glass */
 .bg{position:fixed;inset:0;z-index:-1;overflow:hidden;background:var(--bg)}
 .bg i{position:absolute;width:62vmax;height:62vmax;border-radius:50%;filter:blur(70px);opacity:.8;animation:drift 24s ease-in-out infinite alternate}
@@ -64,8 +67,6 @@ h2[id],.yr{scroll-margin-top:calc(255px + var(--sat))}
 .v{background:rgba(0,0,0,.82);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
 .bar button,.nav{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28)}
 .chip.empty{opacity:.5}
-.chips.mo{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;overflow:visible}
-.chips.mo .chip{padding:5px 0;font-size:12px;text-align:center}
 .none{color:var(--mute);font-size:13px;padding:2px 18px 6px}
 h2 small{margin-left:8px;font:12px system-ui,sans-serif;opacity:.75}
 .sheet{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.4);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center}
@@ -226,6 +227,7 @@ const tile = i => {
 
 // Timeline: every month of every year is shown, whether or not it has memories yet
 let selY = null;
+let currentMonth = null;
 const RANGE = { from: [2022, 7], to: [2026, 7] }; // August 2022 to August 2026 (months are 0-based)
 // Flower and scenery icons, assigned by a fixed formula so each month and year always keeps the same one
 const ICONS = ["🌸","🌷","🌼","🌻","🌹","🌺","💐","🏞️","🌅","🌄","🌊","🏔️","🌈","🍁","🌾","🌴"];
@@ -261,14 +263,14 @@ function draw() {
 }
 
 function timeline() {
-  const { ys, ms } = calendar();
-  const years = Object.keys(ms).sort((a, b) => b - a);
+  const { ys } = calendar();
+  const years = Object.keys(ys).sort((a, b) => b - a);
   if (!years.length) { $("tl").innerHTML = ""; return; }
-  if (!ms[selY]) selY = +years[0];
-  const months = [...ms[selY]].sort((a, b) => a - b); // January to December
+  if (!ys[selY]) selY = +years[0];
   const n = y => Object.values(ys[y] || {}).reduce((a, b) => a + b, 0);
-  $("tl").innerHTML = `<div class="chips">${years.map(y => `<button class="chip ${y == selY ? "on" : ""} ${n(y) ? "" : "empty"}" data-y="${y}">${yi(+y)} ${y}</button>`).join("")}</div>` +
-    `<div class="chips mo">${months.map(m => `<button class="chip ${(ys[selY] || {})[m] ? "" : "empty"}" data-m="${selY}-${m}">${mi(selY, m)} ${mname(selY, m)}</button>`).join("")}</div>`;
+  const months = Array.from({ length: 12 }, (_, m) => m);
+  $("tl").innerHTML = `<div class="chips">${years.map(y => `<button class="chip ${y == selY ? "on" : ""}" data-y="${y}">${yi(+y)} ${y}${n(y) ? ` <small>${n(y)}</small>` : ""}</button>`).join("")}</div>` +
+    `<div class="chips mo">${months.map(m => `<button class="chip ${currentMonth === m ? "on" : ""} ${ys[selY]?.[m] ? "" : "empty"}" data-m="${selY}-${m}">${mi(selY, m)} ${mname(selY, m)}</button>`).join("")}</div>`;
 }
 const satPx = () => parseFloat(getComputedStyle($("top")).top) || 0; // how far the pinned bar sits below the top edge
 function spy() {
@@ -278,14 +280,28 @@ function spy() {
   if (!c) return;
   const [, y, m] = c.id.split("-");
   if (+y !== selY) { selY = +y; timeline(); }
+  currentMonth = +m;
   document.querySelectorAll("[data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === y + "-" + m));
 }
 addEventListener("scroll", spy, { passive: true });
 $("tl").onclick = e => {
   const b = e.target.closest(".chip"); if (!b) return;
   const what = cat === "video" ? "videos" : "photos";
-  if (b.dataset.y) { selY = +b.dataset.y; timeline(); const t = document.getElementById("y-" + selY); if (t) t.scrollIntoView({ behavior: "smooth" }); else toast(`No ${what} in ${selY} yet`); }
-  else if (b.dataset.m) { const [y, m] = b.dataset.m.split("-"); const t = document.getElementById("m-" + b.dataset.m); if (t) t.scrollIntoView({ behavior: "smooth" }); else toast(`No ${what} in ${mname(+y, +m, true)} yet`); }
+  if (b.dataset.y) {
+    selY = +b.dataset.y;
+    const first = Object.keys(calendar().ys[selY] || {}).map(Number).sort((a, b) => a - b)[0];
+    currentMonth = first ?? null;
+    timeline();
+    const t = document.getElementById("y-" + selY);
+    if (t) t.scrollIntoView({ behavior: "smooth" });
+  }
+  else if (b.dataset.m) {
+    const [y, m] = b.dataset.m.split("-").map(Number);
+    selY = y; currentMonth = m; timeline();
+    const t = document.getElementById("m-" + b.dataset.m);
+    if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+    else toast(`No ${what} in ${mname(y, m, true)} yet`);
+  }
 };
 async function load() {
   if (!live()) { if (!PREVIEW) { showOutside(); return; } all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode. Open the app inside Telegram to see your real album."; return; }
