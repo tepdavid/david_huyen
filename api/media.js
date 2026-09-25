@@ -147,7 +147,7 @@ module.exports = async (req, res) => {
       return res.json({ configured: {
         telegram: !!R("BOT_TOKEN") && (E.ALLOWED_USER_IDS || "").split(",").some(s => s.trim()),
         storage: !!(R("R2_ACCOUNT_ID") && R("R2_ACCESS_KEY_ID") && R("R2_SECRET_ACCESS_KEY") && R("R2_BUCKET")),
-        browserPin: /^\\d{4}$/.test(R("ALBUM_PIN"))
+        browserPin: /^\d{4}$/.test(R("ALBUM_PIN"))
       }, storage });
     }
 
@@ -165,19 +165,24 @@ module.exports = async (req, res) => {
       const itemResults = await each(mediaObjects, async (o) => {
         const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`;
         const type = kindOf(base);
-        // Thumbnails are cheap to probe here; compatible video copies are resolved on demand.
-        let thumb = null;
+        // Probe the thumbnail and browser-compatible video copy without rescanning the bucket.
+        let thumb = null, playKey = o.Key, compatible = false;
         try { await s3.send(new HeadObjectCommand({ Bucket, Key: tk })); thumb = await sign(tk); } catch {}
+        if (type === "video") {
+          for (const candidate of [`compatible-v2/${base}.mp4`, `compatible/${base}.mp4`]) {
+            try { await s3.send(new HeadObjectCommand({ Bucket, Key: candidate })); playKey = candidate; compatible = true; break; } catch {}
+          }
+        }
         return {
           key: o.Key,
-          playKey: o.Key,
+          playKey,
           size: Number(o.Size) || 0,
           date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0,
           type,
           url: type === "video" ? null : (thumb ? null : await sign(o.Key)),
           sourceUrl: null,
           thumb,
-          compatible: false,
+          compatible,
           timeline: base.startsWith("other-") ? "other" : "date"
         };
       }, 8);
@@ -203,7 +208,6 @@ module.exports = async (req, res) => {
         for (let i = 0; i < orphan.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: orphan.slice(i, i + 500) } })).catch(() => {});
 
         const trashPage = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: "trash/", MaxKeys: 1000 }));
-        const haveTrash = new Set((trashPage.Contents || []).map(o => o && o.Key).filter(Boolean));
         const now = Date.now(), stale = [], staleBases = [];
         for (const o of (trashPage.Contents || [])) {
           if (!o || typeof o.Key !== "string") continue;
