@@ -156,10 +156,11 @@ module.exports = async (req, res) => {
       const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
       const mediaObjects = all.filter((o) => typeof o.Key === "string" && o.Key.startsWith("media/") && o.Key.length > 6);
       const itemResults = await each(mediaObjects, async (o) => {
-        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatible = `compatible/${base}.mp4`;
+        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatibleV2 = `compatible-v2/${base}.mp4`, compatibleV1 = `compatible/${base}.mp4`;
         const type = kindOf(base);
         // Prefer a browser-friendly H.264/AAC MP4 when a compatible copy has been created.
-        const playKey = type === "video" && have.has(compatible) ? compatible : o.Key;
+        const compatible = type === "video" && (have.has(compatibleV2) || have.has(compatibleV1)) ? (have.has(compatibleV2) ? compatibleV2 : compatibleV1) : null;
+        const playKey = compatible || o.Key;
         return { key: o.Key, size: Number(o.Size) || 0, date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0, type, url: await sign(playKey), sourceUrl: type === "video" ? await sign(o.Key) : null, thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key, timeline: base.startsWith("other-") ? "other" : "date" };
       }, 8);
       const items = itemResults.filter(Boolean);
@@ -169,7 +170,10 @@ module.exports = async (req, res) => {
       for (const o of all.filter((o) => o.Key.startsWith("trash/"))) {
         const rest = o.Key.slice(6), cut = rest.indexOf("~"), at = Number(rest.slice(0, cut)), base = rest.slice(cut + 1), tk = `trash-thumbs/${rest}.jpg`;
         if (!(at > 0)) continue;
-        if (now - at > 30 * 864e5) { stale.push(o.Key, tk); staleBases.push(base); continue; }
+        if (now - at > 30 * 864e5) {
+          stale.push(o.Key, tk, `trash-compatible-v2/${rest}.mp4`, `trash-compatible/${rest}.mp4`, `compatible-v2/${base}.mp4`, `compatible/${base}.mp4`, `thumbs/${base}.jpg`);
+          staleBases.push(base); continue;
+        }
         try {
           trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url: await sign(o.Key), thumb: have.has(tk) ? await sign(tk) : null });
         } catch {}
@@ -191,7 +195,7 @@ module.exports = async (req, res) => {
       if (!/^media\/[\w.-]+$/.test(key) || !/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(key.slice(6))) return res.status(400).json({ error: "bad key" });
       const base = key.slice(6);
       // The client converts the original bytes to H.264/AAC in WASM, then uploads this copy.
-      const uploadKey = `compatible/${base}.mp4`;
+      const uploadKey = `compatible-v2/${base}.mp4`;
       const thumbKey = `thumbs/${base}.jpg`;
       return res.json({ uploadUrl: await put(uploadKey, "video/mp4"), playUrl: await sign(uploadKey), thumbUrl: await put(thumbKey, "image/jpeg"), key: uploadKey });
     }
@@ -244,6 +248,9 @@ module.exports = async (req, res) => {
         const base = k.slice(6);
         await move(k, `trash/${at}~${base}`);
         await move(`thumbs/${base}.jpg`, `trash-thumbs/${at}~${base}.jpg`).catch(() => {}); // a missing thumbnail is fine
+        // Keep generated playback copies with the deleted memory so restoring it restores the full memory.
+        await move(`compatible-v2/${base}.mp4`, `trash-compatible-v2/${at}~${base}.mp4`).catch(() => {});
+        await move(`compatible/${base}.mp4`, `trash-compatible/${at}~${base}.mp4`).catch(() => {});
         return 1;
       });
       return res.json({ done: r.filter(Boolean).length });
@@ -256,6 +263,8 @@ module.exports = async (req, res) => {
         const rest = k.slice(6), base = rest.slice(rest.indexOf("~") + 1);
         await move(k, `media/${base}`);
         await move(`trash-thumbs/${rest}.jpg`, `thumbs/${base}.jpg`).catch(() => {});
+        await move(`trash-compatible-v2/${rest}.mp4`, `compatible-v2/${base}.mp4`).catch(() => {});
+        await move(`trash-compatible/${rest}.mp4`, `compatible/${base}.mp4`).catch(() => {});
         return 1;
       });
       return res.json({ done: r.filter(Boolean).length });
@@ -264,7 +273,21 @@ module.exports = async (req, res) => {
     if (req.query.action === "erase") { // delete forever
       const keys = keysOf(okTrash);
       if (!keys.length) return res.status(400).json({ error: "bad key" });
-      await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: keys.flatMap((k) => [{ Key: k }, { Key: `trash-thumbs/${k.slice(6)}.jpg` }]) } }));
+      const eraseObjects = [];
+      for (const k of keys) {
+        const rest = k.slice(6), cut = rest.indexOf("~"), base = cut >= 0 ? rest.slice(cut + 1) : rest;
+        eraseObjects.push(
+          { Key: k },
+          { Key: `trash-thumbs/${rest}.jpg` },
+          { Key: `trash-compatible-v2/${rest}.mp4` },
+          { Key: `trash-compatible/${rest}.mp4` },
+          // Also remove any older/orphaned generated copies left by previous versions.
+          { Key: `compatible-v2/${base}.mp4` },
+          { Key: `compatible/${base}.mp4` },
+          { Key: `thumbs/${base}.jpg` }
+        );
+      }
+      for (let i = 0; i < eraseObjects.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: eraseObjects.slice(i, i + 500) } }));
       await dropFavs(keys.map((k) => k.slice(6).slice(k.slice(6).indexOf("~") + 1))).catch(() => {});
       return res.json({ done: keys.length });
     }

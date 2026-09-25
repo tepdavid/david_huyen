@@ -350,7 +350,7 @@ function show(i) {
         const nv = $("m").querySelector("video");
         nv.addEventListener("error", () => { if (it.thumb) $("m").innerHTML = `<div class="vfail"><img src="${it.thumb}" alt=""><p>This video could not be converted for this browser.</p></div>`; }, { once: true });
       } catch (e) {
-        $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be converted for this browser.</p><small>The original memory is still preserved.</small></div>`;
+        $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be prepared for this browser.</p><small>Please try the video again. Your memory has not been deleted.</small></div>`;
       }
     };
     v.addEventListener("error", repairIfNeeded, { once: true });
@@ -494,16 +494,27 @@ async function getFFmpeg() {
   try { return await ffmpegLoading; } finally { ffmpegLoading = null; }
 }
 async function makeCompatibleVideo(file, progress) {
-  const ff = await getFFmpeg(), input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${(file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "")}`, output = input + ".mp4";
+  const ff = await getFFmpeg();
+  const ext = (file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "") || "mp4";
+  const input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+  const output = input + ".mp4";
   ff.FS("writeFile", input, await ff.__fetchFile(file));
+  const cleanup = () => { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} };
   try {
-    // Very conservative browser profile: H.264 8-bit 4:2:0, max 1080p, AAC, fast-start MP4.
-    // This avoids the common HEVC/10-bit/4:2:2/high-level black-video failures in Telegram WebView.
-    await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-profile:v", "baseline", "-level", "4.0", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\,1920)/2)*2:trunc(min(ih\,1080)/2)*2:force_original_aspect_ratio=decrease,pad=ceil(iw/2)*2:ceil(ih/2)*2", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k", "-ar", "48000", output);
+    // First pass: conservative H.264/AAC profile that plays in Telegram WebView, iOS and Android.
+    try {
+      await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-profile:v", "baseline", "-level", "3.1", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\,1280)/2)*2:trunc(min(ih\,720)/2)*2:force_original_aspect_ratio=decrease", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "96k", "-ar", "44100", output);
+    } catch (first) {
+      // Fallback for difficult/large sources: remove audio and use a very small H.264 copy.
+      cleanup();
+      ff.FS("writeFile", input, await ff.__fetchFile(file));
+      await ff.run("-i", input, "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-profile:v", "baseline", "-level", "3.1", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\,960)/2)*2:trunc(min(ih\,540)/2)*2:force_original_aspect_ratio=decrease", "-movflags", "+faststart", output);
+    }
     const data = ff.FS("readFile", output);
+    if (!data || !data.length) throw new Error("Video conversion produced no output");
     progress && progress(1);
     return new Blob([data.buffer], { type: "video/mp4" });
-  } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
+  } finally { cleanup(); }
 }
 async function makeVideoThumb(videoBlob) {
   const ff = await getFFmpeg(), input = `thumb-in-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`, output = input + ".jpg";
