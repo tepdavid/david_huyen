@@ -160,7 +160,7 @@ module.exports = async (req, res) => {
         const type = kindOf(base);
         // Prefer a browser-friendly H.264/AAC MP4 when a compatible copy has been created.
         const playKey = type === "video" && have.has(compatible) ? compatible : o.Key;
-        return { key: o.Key, size: Number(o.Size) || 0, date: Number(base.split("-")[0]) || 0, type, url: await sign(playKey), thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key };
+        return { key: o.Key, size: Number(o.Size) || 0, date: Number(base.split("-")[0]) || 0, type, url: await sign(playKey), sourceUrl: type === "video" ? await sign(o.Key) : null, thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key };
       }, 8);
       const items = itemResults.filter(Boolean);
       items.sort((x, y) => y.date - x.date);
@@ -184,6 +184,15 @@ module.exports = async (req, res) => {
         if (Number.isFinite(n) && n > 0) storageBytes += n;
       }
       return res.json({ items, trash, favs, storageBytes });
+    }
+
+    if (req.query.action === "compatible") {
+      const key = String(b.key || "");
+      if (!/^media\/[\w.-]+$/.test(key) || !/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(key.slice(6))) return res.status(400).json({ error: "bad key" });
+      const base = key.slice(6);
+      // The client converts the original bytes to H.264/AAC in WASM, then uploads this copy.
+      const uploadKey = `compatible/${base}.mp4`;
+      return res.json({ uploadUrl: await put(uploadKey, "video/mp4"), playUrl: await sign(uploadKey), key: uploadKey });
     }
 
     if (req.query.action === "upload") {

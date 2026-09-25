@@ -322,9 +322,16 @@ function show(i) {
     const poster = it.thumb ? ` poster="${it.thumb}"` : "";
     $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
     const v = $("m").querySelector("video");
-    v.addEventListener("error", () => {
-      if (it.thumb) {
-        $("m").innerHTML = `<div class="vfail"><img src="${it.thumb}" alt=""><p>This video needs a compatible format for this browser.</p><small>Keep the original memory; a browser-friendly copy can be created with the included video converter.</small></div>`;
+    v.addEventListener("error", async () => {
+      if (!it.sourceUrl) return;
+      $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>Preparing this video for your device…</p><small>The original is safe. This creates a browser-compatible copy once, then uses it for playback.</small></div>`;
+      try {
+        const url = await repairVideo(it);
+        $("m").innerHTML = `<video src="${url}"${it.thumb ? ` poster="${it.thumb}"` : ""} controls playsinline preload="metadata" autoplay></video>`;
+        const nv = $("m").querySelector("video");
+        nv.addEventListener("error", () => { if (it.thumb) $("m").innerHTML = `<div class="vfail"><img src="${it.thumb}" alt=""><p>This video could not be converted for this browser.</p></div>`; }, { once: true });
+      } catch (e) {
+        $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be converted for this browser.</p><small>The original memory is still preserved.</small></div>`;
       }
     }, { once: true });
   } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
@@ -468,11 +475,24 @@ async function makeCompatibleVideo(file, progress) {
   const ff = await getFFmpeg(), input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${(file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "")}`, output = input + ".mp4";
   ff.FS("writeFile", input, await ff.__fetchFile(file));
   try {
-    await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k", output);
+    // Baseline/main-ish H.264 + yuv420p + AAC is intentionally conservative for Telegram WebView/iOS/Android browsers.
+    await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-profile:v", "main", "-level", "4.0", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k", "-ar", "48000", output);
     const data = ff.FS("readFile", output);
     progress && progress(1);
     return new Blob([data.buffer], { type: "video/mp4" });
   } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
+}
+async function repairVideo(it) {
+  if (!it || it.type !== "video" || !it.sourceUrl) throw new Error("Original video unavailable");
+  const resp = await fetch(it.sourceUrl, { cache: "no-store" });
+  if (!resp.ok) throw new Error("Could not read the original video");
+  const blob = await resp.blob();
+  const file = new File([blob], (it.key.split("/").pop() || "video.mp4"), { type: blob.type || guessType(it.key) || "video/mp4" });
+  const compatible = await makeCompatibleVideo(file);
+  const r = await api("compatible", { key: it.key });
+  await putX(r.uploadUrl, compatible, "video/mp4");
+  it.url = r.playUrl; it.compatible = true;
+  return r.playUrl;
 }
 let busy = false;
 async function upload(files, when) {
