@@ -379,6 +379,43 @@ module.exports = async (req, res) => {
       const base = key.slice(6);
       if (!/^media\/[\w.-]+$/.test(key) || !/^\d+~[\w.-]+$/.test(token) || token.slice(token.indexOf("~") + 1) !== base)
         return res.status(400).json({ error: "bad upload" });
+
+      // Finalization is a commit point: require the marker and the original object
+      // to agree before removing the recovery marker.
+      let marker;
+      try {
+        const mr = await s3.send(new GetObjectCommand({ Bucket, Key: `_uploads/${token}` }));
+        marker = JSON.parse(await mr.Body.transformToString());
+      } catch {
+        return res.status(409).json({ error: "upload_not_active" });
+      }
+      if (!marker || marker.key !== key || !/^(image|video)\\//.test(String(marker.type || "")) ||
+          !Number.isSafeInteger(Number(marker.size)) || Number(marker.size) <= 0) {
+        return res.status(409).json({ error: "bad_upload_marker" });
+      }
+
+      let original;
+      try {
+        original = await s3.send(new HeadObjectCommand({ Bucket, Key: key }));
+      } catch {
+        return res.status(409).json({ error: "upload_incomplete" });
+      }
+      if (Number(original.ContentLength) !== Number(marker.size)) {
+        return res.status(409).json({ error: "upload_size_mismatch" });
+      }
+
+      if (/^video\\//.test(marker.type || "")) {
+        let compatible = false;
+        for (const candidate of [`compatible-v2/${base}.mp4`, `compatible/${base}.mp4`]) {
+          try {
+            await s3.send(new HeadObjectCommand({ Bucket, Key: candidate }));
+            compatible = true;
+            break;
+          } catch {}
+        }
+        if (!compatible) return res.status(409).json({ error: "video_conversion_incomplete" });
+      }
+
       await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: `_uploads/${token}` }] } }));
       return res.json({ done: true });
     }
