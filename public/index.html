@@ -138,8 +138,8 @@ h1{font-size:32px}
 <main id="g"></main>
 <label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
 <div class="lock" id="out" hidden>
-  <div class="lk"><div class="lkT">Open in Telegram 💛</div>
-    <p class="note" style="margin-bottom:18px">This album only opens inside Telegram, where it asks for your passcode. A web browser can't show it.</p>
+  <div class="lk"><div class="lkT">Our Memories 💛</div>
+    <p class="note" style="margin-bottom:18px">Open your private memories with the passcode. You can use Telegram or any web browser.</p>
     <a id="outBtn" class="outBtn" hidden>Open in Telegram</a></div>
 </div>
 <div class="lock" id="lock" hidden>
@@ -179,11 +179,14 @@ if (tg) {
 }
 const $ = id => document.getElementById(id);
 const live = () => tg && tg.initData;
+const browser = () => !live();
 let all = [], items = [], idx = 0, tt, cat = "image", lastCat = "image", session = "", favs = new Set();
 $("t").textContent = TITLE; $("sub").textContent = SUBTITLE;
 
 const api = async (action, body) => {
-  const r = await fetch("/api/media?action=" + action, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "tma " + tg.initData, "x-session": session }, body: JSON.stringify(body || {}) });
+  const headers = { "Content-Type": "application/json", "x-session": session };
+  if (live()) headers.Authorization = "tma " + tg.initData;
+  const r = await fetch("/api/media?action=" + action, { method: "POST", headers, body: JSON.stringify(body || {}) });
   if (!r.ok) {
     let j = {}; try { j = await r.json(); } catch {}
     if (r.status === 401 && j.reason === "locked") { session = ""; showLock(); throw new Error("locked"); }
@@ -304,7 +307,7 @@ $("tl").onclick = e => {
   }
 };
 async function load() {
-  if (!live()) { if (!PREVIEW) { showOutside(); return; } all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode. Open the app inside Telegram to see your real album."; return; }
+  if (!live() && PREVIEW) { all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode."; return; }
   try { const r = await api("list"); all = r.items; trashItems = r.trash || []; favs = new Set(r.favs || []); apply(); }
   catch (e) { if (e.message === "locked") return; $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
 }
@@ -512,10 +515,16 @@ let pin = "", checking = false, hiddenAt = 0;
 $("pad").innerHTML = ["1","2","3","4","5","6","7","8","9","","0","⌫"].map(k => k === "" ? "<span></span>" : `<button class="key" data-k="${k}" aria-label="${k === "⌫" ? "Delete" : k}">${k}</button>`).join("");
 const paintDots = () => document.querySelectorAll("#dots i").forEach((d, i) => d.classList.toggle("on", i < pin.length));
 function showOutside() {
-  $("out").hidden = false;
-  if (TELEGRAM_LINK) { $("outBtn").href = TELEGRAM_LINK; $("outBtn").hidden = false; }
+  $("out").hidden = true;
+  $("lock").hidden = false;
+  if (TELEGRAM_LINK && browser()) { $("outBtn").href = TELEGRAM_LINK; $("outBtn").hidden = false; }
 }
-function showLock(msg) { pin = ""; paintDots(); $("lkM").textContent = msg || ""; $("lock").hidden = false; }
+function showLock(msg) {
+  pin = ""; paintDots();
+  $("lkM").textContent = msg || (browser() ? "Enter your passcode to open this in a browser." : "");
+  $("lock").hidden = false;
+  if (TELEGRAM_LINK && browser()) { $("outBtn").href = TELEGRAM_LINK; $("outBtn").hidden = false; }
+}
 function relock(msg) { session = ""; close(); $("tr").hidden = true; if (selecting) setSel(false); showLock(msg); }
 function wrong(msg) {
   pin = ""; paintDots(); $("lkM").textContent = msg;
@@ -529,11 +538,14 @@ async function tryPin() {
       if (PREVIEW && pin === "1234") { session = "demo"; pin = ""; $("lock").hidden = true; } else wrong("Wrong passcode. In this preview it is 1234.");
       return;
     }
-    const r = await fetch("/api/media?action=unlock", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "tma " + tg.initData }, body: JSON.stringify({ pin }) });
+    const headers = { "Content-Type": "application/json" };
+    if (live()) headers.Authorization = "tma " + tg.initData;
+    const r = await fetch("/api/media?action=unlock", { method: "POST", headers, body: JSON.stringify({ pin }) });
     const j = await r.json().catch(() => ({}));
     if (r.ok) { session = j.session; pin = ""; $("lock").hidden = true; await load(); }
     else if (r.status === 429) wrong(`Too many tries. Try again in ${Math.max(1, Math.ceil((j.wait || 900) / 60))} min.`);
     else if (r.status === 401 && j.error === "wrong_pin") wrong(`Wrong passcode. ${j.left} ${j.left === 1 ? "try" : "tries"} left.`);
+    else if (r.status === 400 && j.error === "browser_password_not_configured") wrong("Browser access is not configured yet. Add ALBUM_PIN in Vercel.");
     else wrong("Couldn't check the passcode. Check your connection and try again.");
   } catch { wrong("Couldn't reach the server. Try again."); }
   finally { checking = false; }

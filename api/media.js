@@ -86,37 +86,49 @@ module.exports = async (req, res) => {
   }
   if (req.method !== "POST") return res.status(405).end();
   const h = req.headers.authorization || "";
-  const v = h.startsWith("tma ") ? verify(h.slice(4)) : { reason: "no_initdata" };
-  if (!v.user) return res.status(401).json({ error: "unauthorized", reason: v.reason, age: v.age });
-  const user = v.user;
+  const isTelegram = h.startsWith("tma ");
+  const v = isTelegram ? verify(h.slice(4)) : null;
+  const user = v && v.user ? v.user : null;
+  const browserMode = !isTelegram;
   const allowed = (E.ALLOWED_USER_IDS || "").split(",").map((s) => s.trim().replace(/["']/g, "")).filter(Boolean);
-  if (!allowed.includes(String(user.id))) return res.status(403).json({ error: "private" });
+  if (isTelegram && !user) return res.status(401).json({ error: "unauthorized", reason: v.reason, age: v.age });
+  if (isTelegram && !allowed.includes(String(user.id))) return res.status(403).json({ error: "private" });
 
   const b = req.body || {};
-  const PIN = R("ALBUM_PIN"), pinOn = /^\d{4}$/.test(PIN); // no ALBUM_PIN set means no passcode screen
-  const mac = (exp) => crypto.createHmac("sha256", `${BOT}:${PIN}`).update(`${user.id}:${exp}`).digest("hex");
+  const PIN = R("ALBUM_PIN"), pinOn = /^\d{4}$/.test(PIN);
+  // Telegram sessions are tied to the Telegram account. Browser sessions use a separate subject.
+  const subject = browserMode ? "web" : String(user.id);
+  const mac = (exp, who = subject) => crypto.createHmac("sha256", `${BOT}:${PIN}`).update(`${who}:${exp}`).digest("hex");
+  const makeSession = (exp) => browserMode ? `web.${exp}.${mac(exp, "web")}` : `tg.${user.id}.${exp}.${mac(exp, String(user.id))}`;
   try {
     if (req.query.action === "unlock") {
-      if (!pinOn) return res.json({ session: "", ttl: 0 });
+      if (!pinOn) return browserMode ? res.status(400).json({ error: "browser_password_not_configured" }) : res.json({ session: "", ttl: 0 });
       const guess = String(b.pin || "");
       if (!/^\d{4}$/.test(guess)) return res.status(400).json({ error: "bad pin" });
       const now = Date.now(), st = await getState();
       if (st.lockedUntil > now) return res.status(429).json({ error: "locked_out", wait: Math.ceil((st.lockedUntil - now) / 1000) });
       if (crypto.timingSafeEqual(Buffer.from(guess), Buffer.from(PIN))) {
         if (st.fails) await putState({ fails: 0, lockedUntil: 0 }).catch(() => {});
-        const exp = now + 3600 * 1000; // a session lasts one hour
-        return res.json({ session: `${exp}.${mac(exp)}`, ttl: 3600 });
+        const exp = now + 3600 * 1000;
+        return res.json({ session: makeSession(exp), ttl: 3600, mode: browserMode ? "web" : "telegram" });
       }
       st.fails = (st.fails || 0) + 1;
-      const out = st.fails >= 5; // five wrong tries lock everything for 15 minutes
+      const out = st.fails >= 5;
       await putState(out ? { fails: 0, lockedUntil: now + 15 * 60 * 1000 } : st);
       return out ? res.status(429).json({ error: "locked_out", wait: 900 }) : res.status(401).json({ error: "wrong_pin", left: 5 - st.fails });
     }
-    if (pinOn) { // every other action needs a valid unlock session
-      const [exp, sig = ""] = String(req.headers["x-session"] || "").split(".");
-      const good = Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp)));
-      if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
-    }
+    // Telegram access can be authenticated by Telegram alone when no passcode is configured.
+    // Browser access always requires a valid one-hour web session.
+    const raw = String(req.headers["x-session"] || "");
+    let good = false;
+    if (browserMode) {
+      const [kind, exp, sig = ""] = raw.split(".");
+      good = kind === "web" && Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp, "web")));
+    } else if (pinOn) {
+      const [kind, id, exp, sig = ""] = raw.split(".");
+      good = kind === "tg" && id === String(user.id) && Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp, String(user.id))));
+    } else good = true;
+    if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
 
     if (req.query.action === "check") { // reports which settings are missing and whether storage is reachable
       const env = Object.fromEntries(["BOT_TOKEN", "ALLOWED_USER_IDS", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"].map((k) => [k, !!E[k]]));
