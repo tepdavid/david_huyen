@@ -247,7 +247,7 @@ module.exports = async (req, res) => {
         let thumb = null, playKey = o.Key, compatible = false;
         try { await s3.send(new HeadObjectCommand({ Bucket, Key: tk })); thumb = await sign(tk); } catch {}
         if (type === "video") {
-          for (const candidate of [`compatible-v2/${base}.mp4`, `compatible/${base}.mp4`]) {
+          for (const candidate of [`_staging/${token}/compatible.mp4`]) {
             try { await s3.send(new HeadObjectCommand({ Bucket, Key: candidate })); playKey = candidate; compatible = true; break; } catch {}
           }
         }
@@ -416,7 +416,7 @@ module.exports = async (req, res) => {
 
       let original;
       try {
-        original = await s3.send(new HeadObjectCommand({ Bucket, Key: key }));
+        original = await s3.send(new HeadObjectCommand({ Bucket, Key: `_staging/${token}/media` }));
       } catch {
         return res.status(409).json({ error: "upload_incomplete" });
       }
@@ -436,6 +436,11 @@ module.exports = async (req, res) => {
         if (!compatible) return res.status(409).json({ error: "video_conversion_incomplete" });
       }
 
+      if (marker.thumb) { try { await s3.send(new HeadObjectCommand({ Bucket, Key: `_staging/${token}/thumb.jpg` })); } catch { return res.status(409).json({ error: "thumbnail_incomplete" }); } }
+      try { await s3.send(new HeadObjectCommand({ Bucket, Key: key })); return res.status(409).json({ error: "media_exists" }); } catch {}
+      await move(`_staging/${token}/media`, key);
+      if (marker.thumb) await move(`_staging/${token}/thumb.jpg`, `thumbs/${base}.jpg`);
+      if (/^video\//.test(marker.type || "")) await move(`_staging/${token}/compatible.mp4`, `compatible-v2/${base}.mp4`);
       await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: `_uploads/${token}` }] } }));
       return res.json({ done: true });
     }
