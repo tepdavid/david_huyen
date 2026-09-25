@@ -172,7 +172,7 @@ module.exports = async (req, res) => {
           type === "video" ? sign(o.Key) : Promise.resolve(null),
           have.has(tk) ? sign(tk) : Promise.resolve(null)
         ]);
-        return { key: o.Key, size: Number(o.Size) || 0, date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0, type, url, sourceUrl, thumb, compatible: playKey !== o.Key, timeline: base.startsWith("other-") ? "other" : "date" };
+        return { key: o.Key, playKey, size: Number(o.Size) || 0, date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0, type, url, sourceUrl, thumb, compatible: playKey !== o.Key, timeline: base.startsWith("other-") ? "other" : "date" };
       }, 8);
       const items = itemResults.filter(Boolean);
       items.sort((x, y) => y.date - x.date);
