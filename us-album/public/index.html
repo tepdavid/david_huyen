@@ -6,8 +6,8 @@
 <title>David 💛 Huyền</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <style>
-:root{--bg:#f6efeb;--card:#fff;--ink:#2a1c28;--mute:#65546a;--acc:#b23a5b;--on:#fff;--b1:#ffb3c7;--b2:#b9d4ff;--b3:#ffd9a8;--glass:rgba(255,255,255,.45);--edge:rgba(255,255,255,.75);
-box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+:root{--sat:calc(max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px)) + var(--tg-content-safe-area-inset-top,0px));--bg:#f6efeb;--card:#fff;--ink:#2a1c28;--mute:#65546a;--acc:#b23a5b;--on:#fff;--b1:#ffb3c7;--b2:#b9d4ff;--b3:#ffd9a8;--glass:rgba(255,255,255,.45);--edge:rgba(255,255,255,.75);
+box-sizing:border-box;padding-top:var(--sat);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171218;--card:#221a24;--ink:#f3e8ec;--mute:#a996a3;--acc:#e5789a;--on:#171218;--b1:#7a2a55;--b2:#2a3f8a;--b3:#6b3a2a;--glass:rgba(255,255,255,.08);--edge:rgba(255,255,255,.2)}}
 :root[data-theme="dark"]{--bg:#171218;--card:#221a24;--ink:#f3e8ec;--mute:#a996a3;--acc:#e5789a;--on:#171218;--b1:#7a2a55;--b2:#2a3f8a;--b3:#6b3a2a;--glass:rgba(255,255,255,.08);--edge:rgba(255,255,255,.2)}
 *{box-sizing:border-box;margin:0}
@@ -25,16 +25,16 @@ h2{font:600 14px Georgia,serif;color:var(--mute);padding:18px 18px 8px}
 .empty,#st{color:var(--mute);text-align:center;padding:40px 24px}
 #st{padding:6px 18px;font-size:12px}
 .fab{position:fixed;right:18px;bottom:calc(20px + env(safe-area-inset-bottom,0px));width:56px;height:56px;border-radius:50%;background:var(--acc);color:var(--on);display:grid;place-items:center;font-size:30px;cursor:pointer;box-shadow:0 6px 18px #0004}
-#toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(12px + env(safe-area-inset-top,0px));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13px;z-index:20}
+#toast{position:fixed;left:50%;transform:translateX(-50%);top:calc(12px + var(--sat));background:var(--ink);color:var(--bg);padding:10px 16px;border-radius:999px;font-size:13px;z-index:40}
 .v{position:fixed;inset:0;background:#000;z-index:10;display:flex;flex-direction:column;justify-content:center;color:#fff}
 .v[hidden],#toast[hidden]{display:none}
 #m{flex:1;display:grid;place-items:center;min-height:0}
 #m img,#m video{max-width:100%;max-height:100%}
-.bar{position:absolute;top:calc(10px + env(safe-area-inset-top,0px));left:0;right:0;display:flex;justify-content:space-between;padding:0 12px}
+.bar{position:absolute;top:calc(10px + var(--sat));left:0;right:0;display:flex;justify-content:space-between;padding:0 12px}
 .bar button,.nav{width:42px;height:42px;border-radius:50%;background:#0009;font-size:18px;color:#fff}
 .nav{position:absolute;top:50%}#pv{left:8px}#nx{right:8px}
 #cap{text-align:center;padding:10px 0 calc(14px + env(safe-area-inset-bottom,0px));font-size:13px;color:#ccc}
-#top{position:sticky;top:env(safe-area-inset-top,0px);z-index:5;background:var(--bg);padding:4px 12px 8px;border-bottom:1px solid #8883}
+#top{position:sticky;top:var(--sat);z-index:5;background:var(--bg);padding:4px 12px 8px;border-bottom:1px solid #8883}
 .seg{display:flex;gap:4px;background:var(--card);border-radius:999px;padding:3px;margin-bottom:6px}
 .seg button{flex:1;padding:8px;border-radius:999px;font-size:14px;color:var(--mute)}
 .seg .on{background:var(--acc);color:var(--on)}
@@ -44,7 +44,7 @@ h2{font:600 14px Georgia,serif;color:var(--mute);padding:18px 18px 8px}
 .chip.on{background:var(--acc);color:var(--on)}
 .chip small{opacity:.75;margin-left:5px}
 .yr{font:italic 700 28px Georgia,serif;color:var(--acc);padding:20px 18px 0}
-h2[id],.yr{scroll-margin-top:215px}
+h2[id],.yr{scroll-margin-top:calc(255px + var(--sat))}
 /* Liquid glass */
 .bg{position:fixed;inset:0;z-index:-1;overflow:hidden;background:var(--bg)}
 .bg i{position:absolute;width:62vmax;height:62vmax;border-radius:50%;filter:blur(70px);opacity:.8;animation:drift 24s ease-in-out infinite alternate}
@@ -78,16 +78,81 @@ select{flex:1;font:inherit;color:var(--ink);background:var(--glass);border:1px s
 .note{color:var(--mute);font-size:12px;margin-bottom:14px}
 .acts{display:flex;gap:10px}.acts button{flex:1;padding:12px;border-radius:999px;background:var(--glass);border:1px solid var(--edge)}
 .acts .go{background:var(--acc);color:var(--on);border-color:transparent;font-weight:600}
+.retry{margin-left:8px;padding:5px 14px;border-radius:999px;background:var(--acc);color:var(--on);font-size:12px}
+header{flex-direction:column;align-items:center;text-align:center;gap:2px;padding:24px 18px 10px}
+h1{font-size:32px}
+#sub{font:italic 16px Georgia,"Times New Roman",serif;color:var(--mute)}
+#n{font-size:12px;margin-top:4px}
+.tools{display:flex;gap:6px;margin-top:8px}
+.tools button{padding:7px 14px;border-radius:999px;font-size:13px;background:var(--glass);border:1px solid var(--edge);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
+#selbar,.trbar{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:26;display:flex;gap:8px;align-items:center;padding:10px;border-radius:22px;background:color-mix(in srgb,var(--card) 84%,transparent);border:1px solid var(--edge);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%)}
+#selbar[hidden]{display:none}
+#selN{flex:1;padding-left:8px;font-size:14px}
+#selbar button,.trbar button{padding:10px 16px;border-radius:999px;background:var(--glass);border:1px solid var(--edge)}
+.trbar button{flex:1}
+#selbar .danger,.trbar .danger{background:#d64545;color:#fff;border-color:transparent}
+.trbar .go{background:var(--acc);color:var(--on);border-color:transparent;font-weight:600}
+.selecting .fab{display:none}
+.tile .ck{position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:50%;border:2px solid #fff;background:#0005;color:#fff;font-size:13px;line-height:18px;text-align:center;display:none;font-style:normal}
+.selecting .tile .ck,.tr .tile .ck{display:block}
+.tile.sel .ck{background:var(--acc);border-color:var(--acc)}
+.tile.sel img{opacity:.65}
+.tr{position:fixed;inset:0;z-index:25;overflow-y:auto;padding:calc(10px + var(--sat)) 0 110px;background:color-mix(in srgb,var(--bg) 90%,transparent);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px)}
+.tr[hidden]{display:none}
+.trh{display:flex;justify-content:space-between;align-items:center;padding:8px 14px}
+.trh h3{font:600 20px Georgia,serif}
+.trh button{padding:8px 14px;border-radius:999px;background:var(--glass);border:1px solid var(--edge)}
+.tools{justify-content:center;margin-top:6px}
+.tools button{padding:5px 9px;font-size:12px}
+.lock{position:fixed;inset:0;z-index:60;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--bg) 97%,transparent);-webkit-backdrop-filter:blur(40px);backdrop-filter:blur(40px)}
+.lock[hidden]{display:none}
+.lk{width:100%;max-width:320px;text-align:center;padding:24px}
+.lkT{font:italic 700 26px Georgia,serif;color:var(--acc);margin-bottom:8px}
+.lk .note{min-height:34px;margin:0}
+.dots{display:flex;gap:16px;justify-content:center;margin:18px 0 26px}
+.dots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--acc)}
+.dots i.on{background:var(--acc)}
+.shake{animation:shake .35s}
+@keyframes shake{20%{transform:translateX(-10px)}40%{transform:translateX(10px)}60%{transform:translateX(-6px)}80%{transform:translateX(6px)}}
+@media(prefers-reduced-motion:reduce){.shake{animation:none}}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;justify-items:center}
+.key{width:72px;height:72px;border-radius:50%;font-size:26px;color:var(--ink);background:var(--glass);border:1px solid var(--edge);-webkit-backdrop-filter:blur(20px);backdrop-filter:blur(20px)}
+.key:active{background:var(--acc);color:var(--on)}
+.outBtn{display:inline-block;padding:13px 28px;border-radius:999px;background:var(--acc);color:var(--on);font-weight:600;text-decoration:none}
+.outBtn[hidden]{display:none}
+.rt{display:flex;gap:8px}
+#fv.on{color:#ff6b8b}
+.tools{flex-wrap:wrap;justify-content:center}
+.tools button.on{background:var(--acc);color:var(--on);border-color:transparent}
+.hv{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;font-style:normal;font-size:15px;line-height:26px;text-align:center;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
+.hv::after{content:"";position:absolute;inset:-8px}
+.hv.on{background:rgba(255,255,255,.88);color:#ff4d75}
 </style>
 </head>
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
-<header><h1 id="t">Us</h1><span id="n"></span></header>
-<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav></div>
+<header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span></header>
+<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="trBtn">Recently deleted</button></div></div>
 <div id="st"></div>
 <main id="g"></main>
 <label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
+<div class="lock" id="out" hidden>
+  <div class="lk"><div class="lkT">Open in Telegram 💛</div>
+    <p class="note" style="margin-bottom:18px">This album only opens inside Telegram, where it asks for your passcode. A web browser can't show it.</p>
+    <a id="outBtn" class="outBtn" hidden>Open in Telegram</a></div>
+</div>
+<div class="lock" id="lock" hidden>
+  <div class="lk"><div class="lkT">Enter passcode 💛</div><p class="note" id="lkM"></p>
+    <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div><div class="pad" id="pad"></div></div>
+</div>
 <div id="toast" hidden></div>
+<div id="selbar" hidden><span id="selN"></span><button id="selFav" aria-label="Favorite">♥</button><button id="selDel" class="danger">Delete</button><button id="selX">Cancel</button></div>
+<div class="tr" id="tr" hidden>
+  <div class="trh"><button id="trX" aria-label="Close">✕</button><h3>Recently deleted</h3><button id="trAll">Select all</button></div>
+  <p class="note" id="trNote" style="padding:0 16px"></p>
+  <div class="grid" id="trG"></div>
+  <div class="trbar"><button id="trRes" class="go">Restore</button><button id="trEr" class="danger">Delete forever</button></div>
+</div>
 <div class="sheet" id="sheet" hidden><div class="card" role="dialog" aria-labelledby="shT">
   <h3 id="shT">Add memories</h3>
   <label class="opt"><input type="radio" name="dm" value="own" checked> Use each file's own date</label>
@@ -97,21 +162,32 @@ select{flex:1;font:inherit;color:var(--ink);background:var(--glass);border:1px s
   <div class="acts"><button id="shC">Cancel</button><button id="shU" class="go">Upload</button></div>
 </div></div>
 <div class="v" id="v" hidden>
-  <div class="bar"><button id="x" aria-label="Close">✕</button><button id="del" aria-label="Delete">🗑</button></div>
+  <div class="bar"><button id="x" aria-label="Close">✕</button><span class="rt"><button id="fv" aria-label="Favorite">♡</button><button id="del" aria-label="Delete">🗑</button></span></div>
   <div id="m"></div><button class="nav" id="pv" aria-label="Previous">‹</button><button class="nav" id="nx" aria-label="Next">›</button><p id="cap"></p>
 </div>
 <script>
 const TITLE = "David 💛 Huyền"; // change to your own title
+const SUBTITLE = "Our love our memories."; // change to your own subtitle
+const PREVIEW = false; // true only for the design preview in chat. Leave false on your real site.
+const TELEGRAM_LINK = "https://t.me/ourmemoryforever_bot/david_huyen"; // your album's link, like https://t.me/YOUR_BOT/APP_NAME. Adds an "Open in Telegram" button.
 const tg = window.Telegram && window.Telegram.WebApp;
-if (tg) { tg.ready(); tg.expand(); }
+if (tg) {
+  tg.ready(); tg.expand();
+  // Full-screen mode puts Telegram's Close and ⋯ buttons on top of the page, so switch it off when it is on
+  try { if (tg.isFullscreen && tg.exitFullscreen) tg.exitFullscreen(); } catch {}
+}
 const $ = id => document.getElementById(id);
 const live = () => tg && tg.initData;
-let all = [], items = [], idx = 0, tt, cat = "image";
-$("t").textContent = TITLE;
+let all = [], items = [], idx = 0, tt, cat = "image", lastCat = "image", session = "", favs = new Set();
+$("t").textContent = TITLE; $("sub").textContent = SUBTITLE;
 
 const api = async (action, body) => {
-  const r = await fetch("/api/media?action=" + action, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "tma " + tg.initData }, body: JSON.stringify(body || {}) });
-  if (!r.ok) { let j = {}; try { j = await r.json(); } catch {} const e = new Error(String(r.status)); e.reason = j.reason; e.age = j.age; throw e; }
+  const r = await fetch("/api/media?action=" + action, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "tma " + tg.initData, "x-session": session }, body: JSON.stringify(body || {}) });
+  if (!r.ok) {
+    let j = {}; try { j = await r.json(); } catch {}
+    if (r.status === 401 && j.reason === "locked") { session = ""; showLock(); throw new Error("locked"); }
+    const e = new Error(String(r.status)); e.reason = j.reason; e.age = j.age; throw e;
+  }
   return r.json();
 };
 const put = async (u, b, t) => {
@@ -130,7 +206,12 @@ const demo = () => Array.from({ length: 12 }, (_, i) => {
 });
 
 function apply() {
-  items = all.filter(i => i.type === cat);
+  if (selecting) setSel(false);
+  if (cat !== "fav" && cat !== "all") lastCat = cat;
+  items = (cat === "fav" ? all.filter(i => favs.has(i.key)) : cat === "all" ? all.slice() : all.filter(i => i.type === cat)).sort((a, b) => b.date - a.date); // newest first
+  $("allBtn").textContent = "All" + (all.length ? ` (${all.length})` : ""); $("allBtn").classList.toggle("on", cat === "all");
+  favLabel();
+  $("trBtn").textContent = "Recently deleted" + (trashItems.length ? ` (${trashItems.length})` : "");
   document.querySelectorAll("#seg button").forEach(b => b.classList.toggle("on", b.dataset.c === cat));
   $("cp").textContent = all.filter(i => i.type === "image").length;
   $("cv").textContent = all.filter(i => i.type === "video").length;
@@ -140,7 +221,7 @@ $("seg").onclick = e => { const b = e.target.closest("button"); if (!b) return; 
 
 const tile = i => {
   const it = items[i], src = it.thumb || (it.type === "image" ? it.url : "");
-  return `<button class="tile" data-i="${i}" aria-label="Open ${it.type} from ${fmt(it.date)}">${src ? `<img loading="lazy" src="${src}" alt="">` : ""}${it.type === "video" ? "<b>▶</b>" : ""}</button>`;
+  return `<button class="tile" data-i="${i}" aria-label="Open ${it.type} from ${fmt(it.date)}">${src ? `<img loading="lazy" src="${src}" alt="">` : ""}${it.type === "video" ? "<b>▶</b>" : ""}<i class="ck">✓</i><i class="hv${favs.has(it.key) ? " on" : ""}" aria-hidden="true">${favs.has(it.key) ? "♥" : "♡"}</i></button>`;
 };
 
 // Timeline: every month of every year is shown, whether or not it has memories yet
@@ -156,7 +237,7 @@ const mlong = (y, m) => new Date(y, m, 1).toLocaleDateString(undefined, { month:
 function calendar() {
   const ys = {}, ms = {};
   items.forEach(it => { const d = new Date(it.date), y = d.getFullYear(), m = d.getMonth(); (ys[y] = ys[y] || {})[m] = (ys[y][m] || 0) + 1; });
-  for (let y = RANGE.from[0]; y <= RANGE.to[0]; y++)
+  if (cat !== "fav" && cat !== "all") for (let y = RANGE.from[0]; y <= RANGE.to[0]; y++) // Favorites only lists months that have hearts
     for (let m = y === RANGE.from[0] ? RANGE.from[1] : 0; m <= (y === RANGE.to[0] ? RANGE.to[1] : 11); m++) (ms[y] = ms[y] || new Set()).add(m);
   Object.keys(ys).forEach(y => Object.keys(ys[y]).forEach(m => (ms[y] = ms[y] || new Set()).add(+m)));
   return { ys, ms };
@@ -164,9 +245,9 @@ function calendar() {
 
 function draw() {
   $("n").textContent = all.length + (all.length === 1 ? " memory" : " memories");
-  const { ms } = calendar(), what = cat === "video" ? "videos" : "photos", by = {};
+  const { ms } = calendar(), what = cat === "video" ? "videos" : cat === "fav" ? "favorites" : cat === "all" ? "memories" : "photos", by = {};
   items.forEach((it, i) => { const d = new Date(it.date), k = d.getFullYear() + "-" + d.getMonth(); (by[k] = by[k] || []).push(i); });
-  let h = items.length ? "" : `<p class="empty">No ${what} yet. Tap + to add some.</p>`;
+  let h = items.length ? "" : (cat === "fav" ? `<p class="empty">No favorites yet. Tap the ♡ on any photo or video.</p>` : cat === "all" ? `<p class="empty">Nothing here yet. Tap + to add photos and videos.</p>` : `<p class="empty">No ${what} yet. Tap + to add some.</p>`);
   Object.keys(ms).sort((a, b) => b - a).forEach(y => {
     h += `<h3 class="yr" id="y-${y}">${yi(+y)} ${y}</h3>`;
     [...ms[y]].sort((a, b) => b - a).forEach(m => {
@@ -182,15 +263,17 @@ function draw() {
 function timeline() {
   const { ys, ms } = calendar();
   const years = Object.keys(ms).sort((a, b) => b - a);
+  if (!years.length) { $("tl").innerHTML = ""; return; }
   if (!ms[selY]) selY = +years[0];
   const months = [...ms[selY]].sort((a, b) => a - b); // January to December
   const n = y => Object.values(ys[y] || {}).reduce((a, b) => a + b, 0);
   $("tl").innerHTML = `<div class="chips">${years.map(y => `<button class="chip ${y == selY ? "on" : ""} ${n(y) ? "" : "empty"}" data-y="${y}">${yi(+y)} ${y}</button>`).join("")}</div>` +
     `<div class="chips mo">${months.map(m => `<button class="chip ${(ys[selY] || {})[m] ? "" : "empty"}" data-m="${selY}-${m}">${mi(selY, m)} ${mname(selY, m)}</button>`).join("")}</div>`;
 }
+const satPx = () => parseFloat(getComputedStyle($("top")).top) || 0; // how far the pinned bar sits below the top edge
 function spy() {
   let c = null;
-  for (const h of document.querySelectorAll("h2[id]")) { if (h.getBoundingClientRect().top <= 235) c = h; else break; }
+  for (const h of document.querySelectorAll("h2[id]")) { if (h.getBoundingClientRect().top <= 275 + satPx()) c = h; else break; }
   if (!c) c = document.querySelector("h2[id]");
   if (!c) return;
   const [, y, m] = c.id.split("-");
@@ -205,9 +288,9 @@ $("tl").onclick = e => {
   else if (b.dataset.m) { const [y, m] = b.dataset.m.split("-"); const t = document.getElementById("m-" + b.dataset.m); if (t) t.scrollIntoView({ behavior: "smooth" }); else toast(`No ${what} in ${mname(+y, +m, true)} yet`); }
 };
 async function load() {
-  if (!live()) { all = demo(); apply(); $("st").textContent = "Preview mode. Open the app inside Telegram to see your real album."; return; }
-  try { all = (await api("list")).items; apply(); }
-  catch (e) { $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
+  if (!live()) { if (!PREVIEW) { showOutside(); return; } all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode. Open the app inside Telegram to see your real album."; return; }
+  try { const r = await api("list"); all = r.items; trashItems = r.trash || []; favs = new Set(r.favs || []); apply(); }
+  catch (e) { if (e.message === "locked") return; $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
 }
 
 function show(i) {
@@ -216,9 +299,27 @@ function show(i) {
   $("m").innerHTML = it.type === "video" && !it.url.startsWith("data:") ? `<video src="${it.url}" controls playsinline autoplay></video>` : `<img src="${it.url}" alt="">`;
   $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   $("v").hidden = false;
+  favIcon();
 }
-const close = () => { $("v").hidden = true; $("m").innerHTML = ""; };
-$("g").onclick = e => { const t = e.target.closest(".tile"); if (t) show(+t.dataset.i); };
+const close = () => { $("v").hidden = true; $("m").innerHTML = ""; if (cat === "fav") apply(); };
+$("g").onclick = e => {
+  const hv = e.target.closest(".hv");
+  if (hv) { const k = items[+hv.closest(".tile").dataset.i].key; setFav([k], !favs.has(k)); return; }
+  const h = e.target.closest("h2[id]");
+  if (h && selecting) { // tapping a month heading selects or clears that whole month
+    const g = h.nextElementSibling;
+    if (g && g.classList.contains("grid")) {
+      const ts = [...g.querySelectorAll(".tile")], full = ts.every(x => sel.has(items[+x.dataset.i].key));
+      ts.forEach(x => { const k = items[+x.dataset.i].key; full ? sel.delete(k) : sel.add(k); x.classList.toggle("sel", !full); });
+      selCount();
+    }
+    return;
+  }
+  const t = e.target.closest(".tile"); if (!t) return;
+  const it = items[+t.dataset.i];
+  if (selecting) { sel.has(it.key) ? sel.delete(it.key) : sel.add(it.key); t.classList.toggle("sel", sel.has(it.key)); selCount(); }
+  else show(+t.dataset.i);
+};
 $("x").onclick = close;
 $("pv").onclick = () => show(idx - 1);
 $("nx").onclick = () => show(idx + 1);
@@ -227,8 +328,8 @@ let sx = 0;
 $("m").ontouchstart = e => sx = e.touches[0].clientX;
 $("m").ontouchend = e => { const d = e.changedTouches[0].clientX - sx; if (Math.abs(d) > 60) show(idx + (d < 0 ? 1 : -1)); };
 $("del").onclick = async () => {
-  if (!live() || !confirm("Delete this memory for both of you?")) return;
-  try { await api("delete", { key: items[idx].key }); close(); toast("Deleted"); load(); } catch { toast("Couldn't delete"); }
+  if (!await ask("Move this memory to Recently deleted? It disappears for both of you and is kept for 30 days.")) return;
+  try { await act("delete", [items[idx].key]); close(); toast("Moved to Recently deleted"); await refresh(); } catch { toast("Couldn't delete. Try again."); }
 };
 
 function makeThumb(f) {
@@ -247,13 +348,17 @@ function makeThumb(f) {
 const shift = (ms, w) => { const d = new Date(ms || Date.now()); d.setFullYear(w.y, w.m, Math.min(d.getDate(), new Date(w.y, w.m + 1, 0).getDate())); return d.getTime(); };
 let pending = [];
 $("f").onchange = e => {
+  if (busy) { toast("Please wait for the current upload to finish"); e.target.value = ""; return; }
   pending = [...e.target.files]; e.target.value = "";
   if (!pending.length) return;
   $("shT").textContent = `Add ${pending.length} ${pending.length === 1 ? "file" : "files"}`;
-  $("ySel").innerHTML = Object.keys(calendar().ms).sort((a, b) => b - a).map(y => `<option value="${y}">${y}</option>`).join("");
+  // Every year from the timeline range (plus any year that already has memories), whichever view you are in
+  const yrs = new Set(); for (let y = RANGE.from[0]; y <= RANGE.to[0]; y++) yrs.add(y);
+  all.forEach(i => yrs.add(new Date(i.date).getFullYear()));
+  $("ySel").innerHTML = [...yrs].sort((a, b) => b - a).map(y => `<option value="${y}">${y}</option>`).join("");
   $("mSel").innerHTML = Array.from({ length: 12 }, (_, m) => `<option value="${m}">${mlong(2000, m)}</option>`).join("");
   const cur = document.querySelector("[data-m].on");
-  $("ySel").value = selY; $("mSel").value = cur ? cur.dataset.m.split("-")[1] : 0;
+  $("ySel").value = yrs.has(selY) ? selY : Math.max(...yrs); $("mSel").value = cur ? cur.dataset.m.split("-")[1] : 0;
   document.querySelector('input[name=dm][value=own]').checked = true;
   $("sheet").hidden = false;
 };
@@ -270,6 +375,7 @@ const guessType = n => ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png
 const kind = f => f.type || guessType(f.name);
 async function why(e) {
   const m = e.message, id = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user || {}).id;
+  if (m === "locked") return "The album locked itself. Enter your passcode, then try again.";
   if (m === "401") {
     const R = {
       no_initdata: "Open the album from your bot's Mini App link (t.me/YOUR_BOT/APP_NAME) or its menu button in Telegram, not from a browser.",
@@ -296,24 +402,165 @@ async function why(e) {
   return { "401": "Your Telegram login expired. Close and reopen the app.", "403": "This Telegram account isn't on the allowed list.",
     "400": "The server rejected the file (type or size).", "404": "The upload service isn't deployed (the /api folder is missing)." }[m] || (m === "Failed to fetch" ? "Couldn't reach the server. Check your connection." : m);
 }
+const putX = (u, b, t, on) => new Promise((res, rej) => { // upload with byte-by-byte progress
+  const x = new XMLHttpRequest(); x.open("PUT", u); x.setRequestHeader("Content-Type", t);
+  x.upload.onprogress = e => on && on(e.loaded);
+  x.onload = () => x.status >= 200 && x.status < 300 ? res() : rej(new Error("Storage refused the file (error " + x.status + "). Check the R2 API token has Object Read & Write for this bucket."));
+  x.onerror = () => rej(new Error("Storage blocked the upload. Add this exact address to the R2 bucket's CORS rule (AllowedOrigins): " + location.origin));
+  x.send(b);
+});
+let busy = false;
 async function upload(files, when) {
-  let bad = 0, first = null;
-  for (let i = 0; i < files.length; i++) {
-    const f = files[i], type = kind(f); toast(`Uploading ${i + 1} of ${files.length}…`);
+  busy = true; if (tg && tg.enableClosingConfirmation) tg.enableClosingConfirmation();
+  const total = files.reduce((a, f) => a + f.size, 0) || 1, sent = new Array(files.length).fill(0), errs = [], failed = [];
+  let done = 0, next = 0;
+  const show = () => { $("st").textContent = `Uploading ${files.length} file${files.length > 1 ? "s" : ""}: ${done} done, ${Math.min(100, Math.round(sent.reduce((a, b) => a + b, 0) / total * 100))}%. Keep this screen open.`; };
+  const one = async i => {
+    const f = files[i], type = kind(f);
     try {
       if (!/^(image|video)\//.test(type)) throw new Error("This file type isn't supported: " + f.name);
       const th = await makeThumb(f);
       const r = await api("upload", { name: f.name, type, size: f.size, lastModified: when ? shift(f.lastModified, when) : f.lastModified, thumb: !!th });
-      await put(r.url, f, type);
+      await putX(r.url, f, type, n => { sent[i] = n; show(); });
       if (th && r.thumbUrl) { try { await put(r.thumbUrl, th, "image/jpeg"); } catch {} }
-    } catch (e) { bad++; first = first || e; }
-  }
-  if (files.every(f => kind(f).startsWith("video"))) cat = "video"; else if (files.every(f => kind(f).startsWith("image"))) cat = "image";
-  if (bad) { $("st").textContent = `Couldn't upload ${bad} of ${files.length}. ${await why(first)}`; toast(`${bad} file${bad > 1 ? "s" : ""} couldn't upload`); }
-  else { $("st").textContent = ""; toast("Added to your album"); }
+    } catch (e) { errs.push(e); failed.push(f); }
+    sent[i] = files[i].size; done++; show();
+  };
+  const worker = async () => { while (next < files.length) await one(next++); }; // 3 files at a time
+  show();
+  await Promise.all(Array.from({ length: Math.min(3, files.length) }, worker));
+  if (tg && tg.disableClosingConfirmation) tg.disableClosingConfirmation();
+  busy = false;
+  if (cat === "all") {} else if (files.every(f => kind(f).startsWith("video"))) cat = "video"; else if (files.every(f => kind(f).startsWith("image"))) cat = "image";
+  const st = $("st"); st.textContent = "";
+  if (failed.length) {
+    st.textContent = `Couldn't upload ${failed.length} of ${files.length}. ${await why(errs[0])} `;
+    const b = document.createElement("button"); b.textContent = "Retry"; b.className = "retry"; b.onclick = () => upload(failed, when); st.appendChild(b);
+    toast(`${failed.length} file${failed.length > 1 ? "s" : ""} couldn't upload`);
+  } else toast(files.length === 1 ? "Added to your album" : `Added ${files.length} memories`);
   await load();
   if (when) { selY = when.y; timeline(); const t = document.getElementById(`m-${when.y}-${when.m}`); if (t) t.scrollIntoView({ behavior: "smooth" }); }
 }
+// Select mode, Recently deleted, and confirmations
+let selecting = false, trashItems = [];
+const sel = new Set(), tsel = new Set();
+const ask = msg => new Promise(res => (tg && tg.isVersionAtLeast && tg.isVersionAtLeast("6.2") && tg.showConfirm) ? tg.showConfirm(msg, res) : res(confirm(msg)));
+async function act(action, keys) {
+  if (live()) return api(action, { keys });
+  const ks = new Set(keys); // preview mode: everything stays in memory
+  if (action === "delete") { const gone = all.filter(i => ks.has(i.key)); all = all.filter(i => !ks.has(i.key)); trashItems.push(...gone.map(i => ({ ...i, deletedAt: Date.now() }))); }
+  else if (action === "restore") { all.push(...trashItems.filter(i => ks.has(i.key))); trashItems = trashItems.filter(i => !ks.has(i.key)); all.sort((a, b) => b.date - a.date); }
+  else if (action === "erase") trashItems = trashItems.filter(i => !ks.has(i.key));
+}
+const refresh = async () => { if (live()) await load(); else apply(); };
+const selCount = () => { $("selN").textContent = sel.size ? `${sel.size} selected` : "Tap photos to select"; };
+function setSel(on) {
+  selecting = on; if (!on) sel.clear();
+  document.body.classList.toggle("selecting", on); $("selbar").hidden = !on; $("selBtn").textContent = on ? "Cancel" : "Select";
+  document.querySelectorAll("#g .tile.sel").forEach(t => t.classList.remove("sel")); selCount();
+}
+$("selBtn").onclick = () => setSel(!selecting);
+$("selX").onclick = () => setSel(false);
+$("selDel").onclick = async () => {
+  if (!sel.size) return toast("Tap the photos you want to delete");
+  const n = sel.size;
+  if (!await ask(`Move ${n} ${n === 1 ? "item" : "items"} to Recently deleted? ${n === 1 ? "It disappears" : "They disappear"} for both of you and ${n === 1 ? "is" : "are"} kept for 30 days.`)) return;
+  try { await act("delete", [...sel]); setSel(false); toast(`Moved ${n} to Recently deleted`); await refresh(); } catch { toast("Couldn't delete. Try again."); }
+};
+
+const daysLeft = i => Math.max(1, Math.ceil((i.deletedAt + 30 * 864e5 - Date.now()) / 864e5));
+function drawTrash() {
+  $("trNote").textContent = trashItems.length ? "Items are erased for good after 30 days. Tap to select." : "Nothing here. Deleted items are kept for 30 days.";
+  $("trG").innerHTML = trashItems.map((it, i) => {
+    const src = it.thumb || (it.type === "image" ? it.url : "");
+    return `<button class="tile${tsel.has(it.key) ? " sel" : ""}" data-i="${i}" aria-label="${it.type}, ${daysLeft(it)} days left">${src ? `<img loading="lazy" src="${src}" alt="">` : ""}<b>${daysLeft(it)}d${it.type === "video" ? " ▶" : ""}</b><i class="ck">✓</i></button>`;
+  }).join("");
+}
+$("trBtn").onclick = () => { tsel.clear(); drawTrash(); $("tr").hidden = false; };
+$("trX").onclick = () => { $("tr").hidden = true; };
+$("trG").onclick = e => { const t = e.target.closest(".tile"); if (!t) return; const k = trashItems[+t.dataset.i].key; tsel.has(k) ? tsel.delete(k) : tsel.add(k); t.classList.toggle("sel", tsel.has(k)); };
+$("trAll").onclick = () => { const full = trashItems.length && trashItems.every(i => tsel.has(i.key)); tsel.clear(); if (!full) trashItems.forEach(i => tsel.add(i.key)); drawTrash(); };
+$("trRes").onclick = async () => {
+  if (!tsel.size) return toast("Tap the items you want back");
+  const n = tsel.size;
+  try { await act("restore", [...tsel]); tsel.clear(); toast(`Restored ${n}`); await refresh(); drawTrash(); } catch { toast("Couldn't restore. Try again."); }
+};
+$("trEr").onclick = async () => {
+  if (!tsel.size) return toast("Tap the items to erase");
+  const n = tsel.size;
+  if (!await ask(`Erase ${n} ${n === 1 ? "item" : "items"} for good? This can't be undone.`)) return;
+  try { await act("erase", [...tsel]); tsel.clear(); toast(`Erased ${n}`); await refresh(); drawTrash(); } catch { toast("Couldn't erase. Try again."); }
+};
+// Passcode lock
+let pin = "", checking = false, hiddenAt = 0;
+$("pad").innerHTML = ["1","2","3","4","5","6","7","8","9","","0","⌫"].map(k => k === "" ? "<span></span>" : `<button class="key" data-k="${k}" aria-label="${k === "⌫" ? "Delete" : k}">${k}</button>`).join("");
+const paintDots = () => document.querySelectorAll("#dots i").forEach((d, i) => d.classList.toggle("on", i < pin.length));
+function showOutside() {
+  $("out").hidden = false;
+  if (TELEGRAM_LINK) { $("outBtn").href = TELEGRAM_LINK; $("outBtn").hidden = false; }
+}
+function showLock(msg) { pin = ""; paintDots(); $("lkM").textContent = msg || ""; $("lock").hidden = false; }
+function relock(msg) { session = ""; close(); $("tr").hidden = true; if (selecting) setSel(false); showLock(msg); }
+function wrong(msg) {
+  pin = ""; paintDots(); $("lkM").textContent = msg;
+  const d = $("dots"); d.classList.remove("shake"); void d.offsetWidth; d.classList.add("shake");
+  if (tg && tg.HapticFeedback) tg.HapticFeedback.notificationOccurred("error");
+}
+async function tryPin() {
+  checking = true;
+  try {
+    if (!live()) { // preview mode has no server
+      if (PREVIEW && pin === "1234") { session = "demo"; pin = ""; $("lock").hidden = true; } else wrong("Wrong passcode. In this preview it is 1234.");
+      return;
+    }
+    const r = await fetch("/api/media?action=unlock", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "tma " + tg.initData }, body: JSON.stringify({ pin }) });
+    const j = await r.json().catch(() => ({}));
+    if (r.ok) { session = j.session; pin = ""; $("lock").hidden = true; await load(); }
+    else if (r.status === 429) wrong(`Too many tries. Try again in ${Math.max(1, Math.ceil((j.wait || 900) / 60))} min.`);
+    else if (r.status === 401 && j.error === "wrong_pin") wrong(`Wrong passcode. ${j.left} ${j.left === 1 ? "try" : "tries"} left.`);
+    else wrong("Couldn't check the passcode. Check your connection and try again.");
+  } catch { wrong("Couldn't reach the server. Try again."); }
+  finally { checking = false; }
+}
+function press(k) {
+  if (checking) return;
+  if (k === "⌫") pin = pin.slice(0, -1); else if (pin.length < 4) pin += k;
+  paintDots();
+  if (pin.length === 4) setTimeout(tryPin, 120);
+}
+$("pad").onclick = e => { const b = e.target.closest(".key"); if (b) press(b.dataset.k); };
+addEventListener("keydown", e => { if ($("lock").hidden) return; if (/^\d$/.test(e.key)) press(e.key); else if (e.key === "Backspace") press("⌫"); });
+// Lock again after the app has been in the background for a minute
+document.addEventListener("visibilitychange", () => { if (document.hidden) hiddenAt = Date.now(); else if (session && hiddenAt && Date.now() - hiddenAt > 60000) relock(); });
+// Favorites
+const favIcon = () => { const on = favs.has(items[idx].key); $("fv").textContent = on ? "♥" : "♡"; $("fv").classList.toggle("on", on); };
+const favLabel = () => {
+  const n = all.filter(i => favs.has(i.key)).length;
+  $("favBtn").textContent = "♥ Favorite" + (n ? ` (${n})` : ""); $("favBtn").classList.toggle("on", cat === "fav");
+};
+function paintFavs() {
+  if (cat === "fav" && $("v").hidden) return apply(); // an un-hearted item leaves the Favorite list
+  document.querySelectorAll("#g .tile").forEach(t => {
+    const it = items[+t.dataset.i], h = t.querySelector(".hv"); if (!it || !h) return;
+    const on = favs.has(it.key); h.textContent = on ? "♥" : "♡"; h.classList.toggle("on", on);
+  });
+  if (!$("v").hidden) favIcon();
+  favLabel();
+}
+async function setFav(keys, on) {
+  keys.forEach(k => on ? favs.add(k) : favs.delete(k));
+  paintFavs();
+  try { if (live()) await api("favorite", { keys, on }); }
+  catch (e) { if (e.message === "locked") return; keys.forEach(k => on ? favs.delete(k) : favs.add(k)); paintFavs(); toast("Couldn't update favorites. Try again."); }
+}
+$("fv").onclick = () => { const k = items[idx].key; setFav([k], !favs.has(k)); };
+$("allBtn").onclick = () => { cat = cat === "all" ? lastCat : "all"; apply(); scrollTo(0, 0); };
+$("favBtn").onclick = () => { cat = cat === "fav" ? lastCat : "fav"; apply(); scrollTo(0, 0); };
+$("selFav").onclick = async () => {
+  if (!sel.size) return toast("Tap the photos you want to favorite");
+  const keys = [...sel], on = !keys.every(k => favs.has(k));
+  await setFav(keys, on); setSel(false); toast(on ? "Added to Favorites" : "Removed from Favorites");
+};
 load();
 </script>
 </body>
