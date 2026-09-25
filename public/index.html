@@ -590,14 +590,30 @@ async function why(e) {
   return { "401": "Your Telegram login expired. Close and reopen the app.", "403": "This Telegram account isn't on the allowed list.",
     "400": "The server rejected the file (type or size).", "404": "The upload service isn't deployed (the /api folder is missing)." }[m] || (m === "Failed to fetch" ? "Couldn't reach the server. Check your connection." : m);
 }
-const putX = (u, b, t, on) => new Promise((res, rej) => { // upload with byte-by-byte progress
-  const x = new XMLHttpRequest(); x.open("PUT", u); x.setRequestHeader("Content-Type", t);
-  x.upload.onprogress = e => on && on(e.loaded);
-  x.onload = () => x.status >= 200 && x.status < 300 ? res() : rej(new Error("Storage refused the file (error " + x.status + "). Check the R2 API token has Object Read & Write for this bucket."));
-  x.onerror = () => rej(new Error("Storage blocked the upload. Add this exact address to the R2 bucket's CORS rule (AllowedOrigins): " + location.origin));
-  x.send(b);
-});
-let ffmpegInstance = null, ffmpegLoading = null;
+async function putX(u, b, t, on) { // upload with progress and bounded retry for transient network/storage failures
+  let last;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await new Promise((res, rej) => {
+        const x = new XMLHttpRequest(); x.open("PUT", u); x.setRequestHeader("Content-Type", t);
+        x.upload.onprogress = e => on && on(e.loaded);
+        x.onload = () => x.status >= 200 && x.status < 300
+          ? res()
+          : rej(Object.assign(new Error("Storage refused the file (error " + x.status + "). Check the R2 API token has Object Read & Write for this bucket."), { status: x.status }));
+        x.onerror = () => rej(new Error("Storage blocked the upload. Add this exact address to the R2 bucket's CORS rule (AllowedOrigins): " + location.origin));
+        x.send(b);
+      });
+      return;
+    } catch (e) {
+      last = e;
+      const retryable = !e.status || e.status === 408 || e.status === 429 || e.status >= 500;
+      if (!retryable || attempt === 2) throw e;
+      await new Promise(r => setTimeout(r, 700 * (attempt + 1)));
+    }
+  }
+  throw last;
+}
+let ffmpegInstance = null, ffmpegLoading = null;\nlet ffmpegJobTail = Promise.resolve();\nfunction withFFmpegLock(job) { const run = ffmpegJobTail.then(job, job); ffmpegJobTail = run.catch(() => {}); return run; }
 async function getFFmpeg() {
   if (ffmpegInstance) return ffmpegInstance;
   if (ffmpegLoading) return ffmpegLoading;
@@ -619,7 +635,7 @@ async function getFFmpeg() {
   })();
   try { return await ffmpegLoading; } finally { ffmpegLoading = null; }
 }
-async function makeCompatibleVideo(file, progress) {
+async function makeCompatibleVideo(file, progress) {\n  return withFFmpegLock(async () => {
   const ff = await getFFmpeg();
   const ext = (file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "") || "mp4";
   const input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
@@ -642,7 +658,7 @@ async function makeCompatibleVideo(file, progress) {
     return new Blob([data.buffer], { type: "video/mp4" });
   } finally { cleanup(); }
 }
-async function makeVideoThumb(videoBlob) {
+async function makeVideoThumb(videoBlob) {\n  return withFFmpegLock(async () => {
   const ff = await getFFmpeg(), input = `thumb-in-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`, output = input + ".jpg";
   ff.FS("writeFile", input, await ff.__fetchFile(videoBlob));
   try {
