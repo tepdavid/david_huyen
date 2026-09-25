@@ -222,6 +222,7 @@ const demo = () => Array.from({ length: 12 }, (_, i) => {
 });
 
 function apply() {
+  renderLimit = 300;
   if (selecting) setSel(false);
   if (cat !== "fav" && cat !== "all") lastCat = cat;
   items = (cat === "fav" ? all.filter(i => favs.has(i.key)) : cat === "all" ? all.slice() : cat === "other" ? all.filter(i => i.timeline === "other") : all.filter(i => i.type === cat));
