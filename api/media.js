@@ -289,7 +289,7 @@ module.exports = async (req, res) => {
       if (!cursor) {
         // Browser uploads are marked until the client finishes conversion/finalization.
         // If a tab is closed mid-upload, the marker becomes stale and its objects are reclaimed.
-        const uploadNow = Date.now(), orphan = [];
+        const uploadNow = Date.now(), orphanUploads = [];
         let uploadCursor;
         do {
           const uploadPage = await s3.send(new ListObjectsV2Command({
@@ -298,17 +298,46 @@ module.exports = async (req, res) => {
           for (const o of uploadPage.Contents || []) {
             if (!o || typeof o.Key !== "string" || !o.Key.startsWith("_uploads/")) continue;
             const token = o.Key.slice(9), cut = token.indexOf("~"), at = Number(token.slice(0, cut)), base = cut >= 0 ? token.slice(cut + 1) : "";
-            // Recovery cleanup must never delete active media. Uploads are staged until finalizeUpload commits them.
-            if (at > 0 && /^[\\w.-]+$/.test(base) && uploadNow - at > 2 * 3600e3) orphan.push(
-              { Key: o.Key },
-              { Key: `_staging/${token}/media` },
-              { Key: `_staging/${token}/thumb.jpg` },
-              { Key: `_staging/${token}/compatible.mp4` }
-            );
+            if (at > 0 && /^[\w.-]+$/.test(base) && uploadNow - at > 2 * 3600e3) orphanUploads.push({ token, base });
           }
           uploadCursor = uploadPage.NextContinuationToken;
         } while (uploadCursor);
-        for (let i = 0; i < orphan.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: orphan.slice(i, i + 500) } })).catch(() => {});
+
+        for (const upload of orphanUploads) {
+          const { token, base } = upload;
+          let marker = null;
+          try {
+            const mr = await s3.send(new GetObjectCommand({ Bucket, Key: "_uploads/" + token }));
+            marker = JSON.parse(await mr.Body.transformToString());
+          } catch {}
+          const valid = marker && marker.key === "media/" + base && /^(image|video)\//.test(String(marker.type || ""));
+          const required = valid ? ["media/" + base] : [];
+          if (valid && marker.thumb) required.push("thumbs/" + base + ".jpg");
+          if (valid && /^video\//.test(marker.type || "")) required.push("compatible-v2/" + base + ".mp4");
+
+          let committed = valid && required.length > 0;
+          for (const key of required) {
+            try { await s3.send(new HeadObjectCommand({ Bucket, Key: key })); }
+            catch { committed = false; break; }
+          }
+
+          const cleanup = [
+            { Key: "_uploads/" + token },
+            { Key: "_staging/" + token + "/media" },
+            { Key: "_staging/" + token + "/thumb.jpg" },
+            { Key: "_staging/" + token + "/compatible.mp4" }
+          ];
+          if (valid && !committed) {
+            cleanup.push(
+              { Key: "media/" + base },
+              { Key: "thumbs/" + base + ".jpg" },
+              { Key: "compatible-v2/" + base + ".mp4" }
+            );
+          }
+          for (let i = 0; i < cleanup.length; i += 500) {
+            await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: cleanup.slice(i, i + 500) } })).catch(() => {});
+          }
+        }
 
         const now = Date.now(), stale = [], staleBases = [];
         let trashCursor;
