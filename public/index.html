@@ -767,7 +767,6 @@ function paintFavs() {
 }
 async function setFav(keys, on) {
   keys.forEach(k => on ? favs.add(k) : favs.delete(k));
-  catalogStats.favorites += on ? keys.filter(k => !favs.has(k)).length : 0;
   catalogStats.favorites = all.reduce((n, i) => n + (favs.has(i.key) ? 1 : 0), 0);
   paintFavs();
   try { if (serverMode()) await api("favorite", { keys, on }); }
