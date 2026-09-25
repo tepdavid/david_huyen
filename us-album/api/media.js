@@ -1,16 +1,27 @@
 // POST /api/media?action=list|upload|delete
 // Env: BOT_TOKEN, ALLOWED_USER_IDS (comma-separated Telegram ids), R2_ACCOUNT_ID, R2_ACCESS_KEY_ID, R2_SECRET_ACCESS_KEY, R2_BUCKET
 const crypto = require("crypto");
-const { S3Client, ListObjectsV2Command, GetObjectCommand, PutObjectCommand, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
+const { S3Client, ListObjectsV2Command, CopyObjectCommand, GetObjectCommand, PutObjectCommand, DeleteObjectsCommand } = require("@aws-sdk/client-s3");
 const { getSignedUrl } = require("@aws-sdk/s3-request-presigner");
 
-const E = process.env, Bucket = E.R2_BUCKET;
+const E = process.env;
+const R = (k) => (E[k] || "").trim().replace(/^["']+|["']+$/g, ""); // ignore stray spaces, line breaks and quotes
+const Bucket = R("R2_BUCKET");
+// If a whole address was pasted instead of the plain Account ID, pull out the 32-character ID
+const ACCT = (R("R2_ACCOUNT_ID").match(/[0-9a-f]{32}/i) || [R("R2_ACCOUNT_ID")])[0];
 const s3 = new S3Client({
   region: "auto",
-  endpoint: `https://${E.R2_ACCOUNT_ID}.r2.cloudflarestorage.com`,
-  credentials: { accessKeyId: E.R2_ACCESS_KEY_ID, secretAccessKey: E.R2_SECRET_ACCESS_KEY },
+  endpoint: `https://${ACCT}.r2.cloudflarestorage.com`,
+  forcePathStyle: true, // keeps the bucket name out of the web address
+  credentials: { accessKeyId: R("R2_ACCESS_KEY_ID"), secretAccessKey: R("R2_SECRET_ACCESS_KEY") },
   requestChecksumCalculation: "WHEN_REQUIRED", // keeps presigned PUTs compatible with R2
 });
+
+// Plain-language description of a wrong storage setting, or "" when the settings look right
+const configProblem = () =>
+  !/^[0-9a-f]{32}$/i.test(ACCT) ? "R2_ACCOUNT_ID isn't a valid Account ID. It must be exactly 32 letters and numbers, found on the main R2 page in Cloudflare."
+  : !/^[a-z0-9][a-z0-9-]{1,61}[a-z0-9]$/.test(Bucket) ? "R2_BUCKET isn't a valid bucket name (3 to 63 lowercase letters, numbers and dashes). Copy it exactly from Cloudflare."
+  : !R("R2_ACCESS_KEY_ID") || !R("R2_SECRET_ACCESS_KEY") ? "R2_ACCESS_KEY_ID or R2_SECRET_ACCESS_KEY is empty." : "";
 
 function verify(initData) {
   // Returns { user } when Telegram's signature is valid, otherwise { reason } so the app can explain what is wrong.
@@ -31,14 +42,47 @@ function verify(initData) {
 }
 
 const sign = (Key) => getSignedUrl(s3, new GetObjectCommand({ Bucket, Key }), { expiresIn: 3600 });
+const enc = (k) => encodeURIComponent(k).replace(/%2F/g, "/");
+// Copy first, delete the original only if the copy worked, so a failure never loses a file
+const move = async (from, to) => {
+  await s3.send(new CopyObjectCommand({ Bucket, CopySource: `${Bucket}/${enc(from)}`, Key: to }));
+  await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: from }] } }));
+};
+const each = async (arr, fn, n = 8) => { // run fn on every item, a few at a time; failures become null
+  let i = 0; const out = [];
+  await Promise.all(Array.from({ length: Math.min(n, arr.length) }, async () => { while (i < arr.length) { const j = i++; try { out[j] = await fn(arr[j]); } catch { out[j] = null; } } }));
+  return out;
+};
+// Passcode lock: failed attempts are remembered in the bucket so the lockout survives between requests
+const BOT = R("BOT_TOKEN"), STATE = "_meta/pin.json";
+const getState = async () => {
+  try { const r = await s3.send(new GetObjectCommand({ Bucket, Key: STATE })); return JSON.parse(await r.Body.transformToString()); }
+  catch { return { fails: 0, lockedUntil: 0 }; }
+};
+const putState = (st) => s3.send(new PutObjectCommand({ Bucket, Key: STATE, Body: JSON.stringify(st), ContentType: "application/json" }));
+
+// Favorites are one shared list of media keys, kept as a small file in the bucket
+const FAVS = "_meta/favorites.json";
+const getFavs = async () => {
+  try { const r = await s3.send(new GetObjectCommand({ Bucket, Key: FAVS })); const j = JSON.parse(await r.Body.transformToString()); return Array.isArray(j) ? j : []; }
+  catch (e) { if (e.name === "NoSuchKey" || (e.$metadata && e.$metadata.httpStatusCode === 404)) return []; throw e; } // never treat a failed read as "no favorites"
+};
+const putFavs = (a) => s3.send(new PutObjectCommand({ Bucket, Key: FAVS, Body: JSON.stringify(a), ContentType: "application/json" }));
+const dropFavs = async (bases) => { // forget favorites of files that were erased for good
+  const gone = new Set(bases.map((b) => `media/${b}`)), cur = await getFavs(), keep = cur.filter((k) => !gone.has(k));
+  if (keep.length !== cur.length) await putFavs(keep);
+};
+
 const put = (Key, ContentType) => getSignedUrl(s3, new PutObjectCommand({ Bucket, Key, ContentType }), { expiresIn: 900 });
 
 module.exports = async (req, res) => {
   if (req.query.action === "ping") { // open /api/media?action=ping in a browser to confirm what is deployed
     const tk = (E.BOT_TOKEN || "").trim().replace(/^["']+|["']+$/g, "");
-    return res.json({ version: 3, hasToken: !!tk, botId: tk.split(":")[0] || null, tokenLength: tk.length,
+    return res.json({ version: 7, pinSet: /^\d{4}$/.test(R("ALBUM_PIN")), problem: configProblem() || "none", hasToken: !!tk, botId: tk.split(":")[0] || null, tokenLength: tk.length,
       allowedIds: (E.ALLOWED_USER_IDS || "").split(",").filter((s) => s.trim()).length,
-      hasStorage: !!(E.R2_ACCOUNT_ID && E.R2_ACCESS_KEY_ID && E.R2_SECRET_ACCESS_KEY && E.R2_BUCKET) });
+      hasStorage: !!(R("R2_ACCOUNT_ID") && R("R2_ACCESS_KEY_ID") && R("R2_SECRET_ACCESS_KEY") && R("R2_BUCKET")),
+      bucket: Bucket, accountIdOk: /^[0-9a-f]{32}$/i.test(ACCT),
+      lengths: { accountId: ACCT.length, accessKeyId: R("R2_ACCESS_KEY_ID").length, secret: R("R2_SECRET_ACCESS_KEY").length } });
   }
   if (req.method !== "POST") return res.status(405).end();
   const h = req.headers.authorization || "";
@@ -49,11 +93,35 @@ module.exports = async (req, res) => {
   if (!allowed.includes(String(user.id))) return res.status(403).json({ error: "private" });
 
   const b = req.body || {};
+  const PIN = R("ALBUM_PIN"), pinOn = /^\d{4}$/.test(PIN); // no ALBUM_PIN set means no passcode screen
+  const mac = (exp) => crypto.createHmac("sha256", `${BOT}:${PIN}`).update(`${user.id}:${exp}`).digest("hex");
   try {
+    if (req.query.action === "unlock") {
+      if (!pinOn) return res.json({ session: "", ttl: 0 });
+      const guess = String(b.pin || "");
+      if (!/^\d{4}$/.test(guess)) return res.status(400).json({ error: "bad pin" });
+      const now = Date.now(), st = await getState();
+      if (st.lockedUntil > now) return res.status(429).json({ error: "locked_out", wait: Math.ceil((st.lockedUntil - now) / 1000) });
+      if (crypto.timingSafeEqual(Buffer.from(guess), Buffer.from(PIN))) {
+        if (st.fails) await putState({ fails: 0, lockedUntil: 0 }).catch(() => {});
+        const exp = now + 3600 * 1000; // a session lasts one hour
+        return res.json({ session: `${exp}.${mac(exp)}`, ttl: 3600 });
+      }
+      st.fails = (st.fails || 0) + 1;
+      const out = st.fails >= 5; // five wrong tries lock everything for 15 minutes
+      await putState(out ? { fails: 0, lockedUntil: now + 15 * 60 * 1000 } : st);
+      return out ? res.status(429).json({ error: "locked_out", wait: 900 }) : res.status(401).json({ error: "wrong_pin", left: 5 - st.fails });
+    }
+    if (pinOn) { // every other action needs a valid unlock session
+      const [exp, sig = ""] = String(req.headers["x-session"] || "").split(".");
+      const good = Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp)));
+      if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
+    }
+
     if (req.query.action === "check") { // reports which settings are missing and whether storage is reachable
       const env = Object.fromEntries(["BOT_TOKEN", "ALLOWED_USER_IDS", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"].map((k) => [k, !!E[k]]));
-      let storage = "ok";
-      try { await s3.send(new ListObjectsV2Command({ Bucket, MaxKeys: 1 })); } catch (e) { storage = `${e.name}: ${e.message}`; }
+      let storage = configProblem() || "ok";
+      if (storage === "ok") { try { await s3.send(new ListObjectsV2Command({ Bucket, MaxKeys: 1 })); } catch (e) { storage = `${e.name}: ${e.message}`; } }
       return res.json({ env, storage });
     }
 
@@ -65,16 +133,25 @@ module.exports = async (req, res) => {
         tok = r.NextContinuationToken;
       } while (tok);
       const have = new Set(all.map((o) => o.Key));
+      const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
       const items = await Promise.all(all.filter((o) => o.Key.startsWith("media/")).map(async (o) => {
         const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`;
-        return {
-          key: o.Key, size: o.Size, date: Number(base.split("-")[0]) || 0,
-          type: /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image",
-          url: await sign(o.Key), thumb: have.has(tk) ? await sign(tk) : null,
-        };
+        return { key: o.Key, size: o.Size, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url: await sign(o.Key), thumb: have.has(tk) ? await sign(tk) : null };
       }));
       items.sort((x, y) => y.date - x.date);
-      return res.json({ items });
+      // Recently deleted lives under trash/<deletedAt>~<name>. Anything older than 30 days is erased here.
+      const now = Date.now(), stale = [], staleBases = [], trash = [];
+      for (const o of all.filter((o) => o.Key.startsWith("trash/"))) {
+        const rest = o.Key.slice(6), cut = rest.indexOf("~"), at = Number(rest.slice(0, cut)), base = rest.slice(cut + 1), tk = `trash-thumbs/${rest}.jpg`;
+        if (!(at > 0)) continue;
+        if (now - at > 30 * 864e5) { stale.push(o.Key, tk); staleBases.push(base); continue; }
+        trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url: await sign(o.Key), thumb: have.has(tk) ? await sign(tk) : null });
+      }
+      for (let i = 0; i < stale.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: stale.slice(i, i + 500).map((Key) => ({ Key })) } }));
+      if (staleBases.length) await dropFavs(staleBases).catch(() => {});
+      trash.sort((x, y) => y.deletedAt - x.deletedAt);
+      const favs = (await getFavs().catch(() => [])).filter((k) => have.has(k));
+      return res.json({ items, trash, favs });
     }
 
     if (req.query.action === "upload") {
@@ -89,10 +166,50 @@ module.exports = async (req, res) => {
       });
     }
 
-    if (req.query.action === "delete") {
-      if (!/^media\/[\w.-]+$/.test(String(b.key))) return res.status(400).json({ error: "bad key" });
-      await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: b.key }, { Key: `thumbs/${b.key.slice(6)}.jpg` }] } }));
-      return res.json({ ok: true });
+    const okMedia = (k) => /^media\/[\w.-]+$/.test(String(k));
+    const okTrash = (k) => /^trash\/\d+~[\w.-]+$/.test(String(k));
+    const keysOf = (ok) => (Array.isArray(b.keys) ? b.keys : [b.key]).filter(ok).slice(0, 300);
+
+    if (req.query.action === "favorite") { // b.on true adds hearts, false removes them
+      const keys = keysOf(okMedia);
+      if (!keys.length) return res.status(400).json({ error: "bad key" });
+      const cur = new Set(await getFavs());
+      keys.forEach((k) => (b.on ? cur.add(k) : cur.delete(k)));
+      await putFavs([...cur]);
+      return res.json({ done: keys.length });
+    }
+
+    if (req.query.action === "delete") { // moves to Recently deleted, kept for 30 days
+      const keys = keysOf(okMedia);
+      if (!keys.length) return res.status(400).json({ error: "bad key" });
+      const at = Date.now();
+      const r = await each(keys, async (k) => {
+        const base = k.slice(6);
+        await move(k, `trash/${at}~${base}`);
+        await move(`thumbs/${base}.jpg`, `trash-thumbs/${at}~${base}.jpg`).catch(() => {}); // a missing thumbnail is fine
+        return 1;
+      });
+      return res.json({ done: r.filter(Boolean).length });
+    }
+
+    if (req.query.action === "restore") {
+      const keys = keysOf(okTrash);
+      if (!keys.length) return res.status(400).json({ error: "bad key" });
+      const r = await each(keys, async (k) => {
+        const rest = k.slice(6), base = rest.slice(rest.indexOf("~") + 1);
+        await move(k, `media/${base}`);
+        await move(`trash-thumbs/${rest}.jpg`, `thumbs/${base}.jpg`).catch(() => {});
+        return 1;
+      });
+      return res.json({ done: r.filter(Boolean).length });
+    }
+
+    if (req.query.action === "erase") { // delete forever
+      const keys = keysOf(okTrash);
+      if (!keys.length) return res.status(400).json({ error: "bad key" });
+      await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: keys.flatMap((k) => [{ Key: k }, { Key: `trash-thumbs/${k.slice(6)}.jpg` }]) } }));
+      await dropFavs(keys.map((k) => k.slice(6).slice(k.slice(6).indexOf("~") + 1))).catch(() => {});
+      return res.json({ done: keys.length });
     }
     res.status(400).json({ error: "bad action" });
   } catch (e) {
