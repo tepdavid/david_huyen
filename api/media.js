@@ -208,7 +208,7 @@ module.exports = async (req, res) => {
       }
     } else if (pinOn) {
       const [kind, id, exp, sig = "", ...extra] = raw.split(".");
-      if (extra.length === 0 && kind === "tg" && id === String(user.id) && /^\\d+$/.test(exp) && Number(exp) > Date.now() && /^[0-9a-f]{64}$/.test(sig)) {
+      if (extra.length === 0 && kind === "tg" && id === String(user.id) && /^\d+$/.test(exp) && Number(exp) > Date.now() && /^[0-9a-f]{64}$/.test(sig)) {
         const expected = mac(exp, String(user.id));
         good = crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
       }

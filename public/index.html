@@ -362,7 +362,7 @@ function spy() {
   document.querySelectorAll("[data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === y + "-" + m));
 }
 addEventListener("scroll", spy, { passive: true });
-$("tl").onclick = e => {
+$("tl").onclick = async e => {
   const b = e.target.closest(".chip"); if (!b) return;
   const what = cat === "video" ? "videos" : "photos";
   if (b.dataset.y) {
