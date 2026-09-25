@@ -147,7 +147,7 @@ h1{font-size:32px}
     <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div><div class="pad" id="pad"></div></div>
 </div>
 <div id="toast" hidden></div>
-<div id="selbar" hidden><span id="selN"></span><button id="selFav" aria-label="Favorite">♥</button><button id="selDel" class="danger">Delete</button><button id="selX">Cancel</button></div>
+<div id="selbar" hidden><span id="selN"></span><button id="selDl" aria-label="Download selected">⇩ Save</button><button id="selFav" aria-label="Favorite">♥</button><button id="selDel" class="danger">Delete</button><button id="selX">Cancel</button></div>
 <div class="tr" id="tr" hidden>
   <div class="trh"><button id="trX" aria-label="Close">✕</button><h3>Recently deleted</h3><button id="trAll">Select all</button></div>
   <p class="note" id="trNote" style="padding:0 16px"></p>
@@ -163,7 +163,7 @@ h1{font-size:32px}
   <div class="acts"><button id="shC">Cancel</button><button id="shU" class="go">Upload</button></div>
 </div></div>
 <div class="v" id="v" hidden>
-  <div class="bar"><button id="x" aria-label="Close">✕</button><span class="rt"><button id="fv" aria-label="Favorite">♡</button><button id="del" aria-label="Delete">🗑</button></span></div>
+  <div class="bar"><button id="x" aria-label="Close">✕</button><span class="rt"><button id="dl" aria-label="Download" title="Save to device">⇩</button><button id="fv" aria-label="Favorite">♡</button><button id="del" aria-label="Delete">🗑</button></span></div>
   <div id="m"></div><button class="nav" id="pv" aria-label="Previous">‹</button><button class="nav" id="nx" aria-label="Next">›</button><p id="cap"></p>
 </div>
 <script>
@@ -352,6 +352,8 @@ $("g").onclick = e => {
 $("x").onclick = close;
 $("pv").onclick = () => show(idx - 1);
 $("nx").onclick = () => show(idx + 1);
+$("dl").onclick = () => { const it = items[idx]; if (it) downloadOne(it.key, it.key.replace(/^media\//, "")); };
+$("selDl").onclick = () => downloadSelected([...sel]);
 document.onkeydown = e => { if ($("v").hidden) return; if (e.key === "Escape") close(); if (e.key === "ArrowLeft") show(idx - 1); if (e.key === "ArrowRight") show(idx + 1); };
 let sx = 0;
 $("m").ontouchstart = e => sx = e.touches[0].clientX;
@@ -474,6 +476,23 @@ async function upload(files, when) {
 let selecting = false, trashItems = [];
 const sel = new Set(), tsel = new Set();
 const ask = msg => new Promise(res => (tg && tg.isVersionAtLeast && tg.isVersionAtLeast("6.2") && tg.showConfirm) ? tg.showConfirm(msg, res) : res(confirm(msg)));
+async function downloadOne(key, name) {
+  try {
+    const r = await api("download", { key });
+    const a = document.createElement("a"); a.href = r.url; a.download = name || "memory"; a.target = "_blank"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+    toast("Download started");
+  } catch { toast("Couldn't download this memory. Try again."); }
+}
+async function downloadSelected(keys) {
+  if (!keys.length) return toast("Select photos or videos first");
+  let started = 0;
+  for (const key of keys) {
+    try { const r = await api("download", { key }); const a = document.createElement("a"); a.href = r.url; a.download = r.name || "memory"; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove(); started++; await new Promise(x => setTimeout(x, 180)); } catch {}
+  }
+  toast(started === keys.length ? `Saving ${started} memories` : `Started ${started} of ${keys.length} downloads`);
+}
+
 async function act(action, keys) {
   if (serverMode()) return api(action, { keys });
   const ks = new Set(keys); // preview mode: everything stays in memory

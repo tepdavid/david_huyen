@@ -185,6 +185,17 @@ module.exports = async (req, res) => {
     const okTrash = (k) => /^trash\/\d+~[\w.-]+$/.test(String(k));
     const keysOf = (ok) => (Array.isArray(b.keys) ? b.keys : [b.key]).filter(ok).slice(0, 300);
 
+    if (req.query.action === "download") {
+      const key = String(b.key || "");
+      if (!/^media\/[\w.-]+$/.test(key)) return res.status(400).json({ error: "bad key" });
+      const base = key.slice(6);
+      const type = /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image";
+      const contentType = type === "video" ? ({mp4:"video/mp4",mov:"video/quicktime",m4v:"video/x-m4v",webm:"video/webm",3gp:"video/3gpp",mkv:"video/x-matroska",avi:"video/x-msvideo",mpg:"video/mpeg",mpeg:"video/mpeg"}[(base.match(/\.([^.]+)$/)||[])[1]?.toLowerCase()] || "application/octet-stream") : ({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif",heic:"image/heic",heif:"image/heif"}[(base.match(/\.([^.]+)$/)||[])[1]?.toLowerCase()] || "application/octet-stream");
+      const safeName = base.replace(/[^\w.-]+/g, "_").slice(-120);
+      const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket, Key: key, ResponseContentType: contentType, ResponseContentDisposition: `attachment; filename="${safeName}"` }), { expiresIn: 900 });
+      return res.json({ url, name: safeName });
+    }
+
     if (req.query.action === "favorite") { // b.on true adds hearts, false removes them
       const keys = keysOf(okMedia);
       if (!keys.length) return res.status(400).json({ error: "bad key" });
