@@ -613,7 +613,9 @@ async function putX(u, b, t, on) { // upload with progress and bounded retry for
   }
   throw last;
 }
-let ffmpegInstance = null, ffmpegLoading = null;\nlet ffmpegJobTail = Promise.resolve();\nfunction withFFmpegLock(job) { const run = ffmpegJobTail.then(job, job); ffmpegJobTail = run.catch(() => {}); return run; }
+let ffmpegInstance = null, ffmpegLoading = null;
+let ffmpegJobTail = Promise.resolve();
+function withFFmpegLock(job) { const run = ffmpegJobTail.then(job, job); ffmpegJobTail = run.catch(() => {}); return run; }
 async function getFFmpeg() {
   if (ffmpegInstance) return ffmpegInstance;
   if (ffmpegLoading) return ffmpegLoading;
@@ -635,37 +637,39 @@ async function getFFmpeg() {
   })();
   try { return await ffmpegLoading; } finally { ffmpegLoading = null; }
 }
-async function makeCompatibleVideo(file, progress) {\n  return withFFmpegLock(async () => {
-  const ff = await getFFmpeg();
-  const ext = (file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "") || "mp4";
-  const input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const output = input + ".mp4";
-  ff.FS("writeFile", input, await ff.__fetchFile(file));
-  const cleanup = () => { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} };
-  try {
-    // First pass: conservative H.264/AAC profile that plays in Telegram WebView, iOS and Android.
+async function makeCompatibleVideo(file, progress) {
+  return withFFmpegLock(async () => {
+    const ff = await getFFmpeg();
+    const ext = (file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "") || "mp4";
+    const input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const output = input + ".mp4";
+    ff.FS("writeFile", input, await ff.__fetchFile(file));
+    const cleanup = () => { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} };
     try {
-      await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-profile:v", "baseline", "-level", "3.1", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\,1280)/2)*2:trunc(min(ih\,720)/2)*2:force_original_aspect_ratio=decrease", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "96k", "-ar", "44100", output);
-    } catch (first) {
-      // Fallback for difficult/large sources: remove audio and use a very small H.264 copy.
-      cleanup();
-      ff.FS("writeFile", input, await ff.__fetchFile(file));
-      await ff.run("-i", input, "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-profile:v", "baseline", "-level", "3.1", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\,960)/2)*2:trunc(min(ih\,540)/2)*2:force_original_aspect_ratio=decrease", "-movflags", "+faststart", output);
-    }
-    const data = ff.FS("readFile", output);
-    if (!data || !data.length) throw new Error("Video conversion produced no output");
-    progress && progress(1);
-    return new Blob([data.buffer], { type: "video/mp4" });
-  } finally { cleanup(); }
+      try {
+        await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-profile:v", "baseline", "-level", "3.1", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\\,1280)/2)*2:trunc(min(ih\\,720)/2)*2:force_original_aspect_ratio=decrease", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "96k", "-ar", "44100", output);
+      } catch (first) {
+        cleanup();
+        ff.FS("writeFile", input, await ff.__fetchFile(file));
+        await ff.run("-i", input, "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-profile:v", "baseline", "-level", "3.1", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\\,960)/2)*2:trunc(min(ih\\,540)/2)*2:force_original_aspect_ratio=decrease", "-movflags", "+faststart", output);
+      }
+      const data = ff.FS("readFile", output);
+      if (!data || !data.length) throw new Error("Video conversion produced no output");
+      progress && progress(1);
+      return new Blob([data.buffer], { type: "video/mp4" });
+    } finally { cleanup(); }
+  });
 }
-async function makeVideoThumb(videoBlob) {\n  return withFFmpegLock(async () => {
-  const ff = await getFFmpeg(), input = `thumb-in-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`, output = input + ".jpg";
-  ff.FS("writeFile", input, await ff.__fetchFile(videoBlob));
-  try {
-    await ff.run("-ss", "0.5", "-i", input, "-frames:v", "1", "-vf", "scale=trunc(min(iw\,900)/2)*2:trunc(min(ih\,900)/2)*2", "-q:v", "3", output);
-    const data = ff.FS("readFile", output);
-    return new Blob([data.buffer], { type: "image/jpeg" });
-  } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
+async function makeVideoThumb(videoBlob) {
+  return withFFmpegLock(async () => {
+    const ff = await getFFmpeg(), input = `thumb-in-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`, output = input + ".jpg";
+    ff.FS("writeFile", input, await ff.__fetchFile(videoBlob));
+    try {
+      await ff.run("-ss", "0.5", "-i", input, "-frames:v", "1", "-vf", "scale=trunc(min(iw\\,900)/2)*2:trunc(min(ih\\,900)/2)*2", "-q:v", "3", output);
+      const data = ff.FS("readFile", output);
+      return new Blob([data.buffer], { type: "image/jpeg" });
+    } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
+  });
 }
 let busy = false;
 async function upload(files, when) {
