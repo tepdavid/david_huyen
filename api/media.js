@@ -383,15 +383,15 @@ module.exports = async (req, res) => {
       const uploadToken = `${Date.now()}~${base}`;
       await s3.send(new PutObjectCommand({
         Bucket, Key: `_uploads/${uploadToken}`,
-        Body: JSON.stringify({ key, type, size, createdAt: Date.now() }),
+        Body: JSON.stringify({ key, type, size, createdAt: Date.now(), thumb: !!b.thumb }),
         ContentType: "application/json"
       }));
       return res.json({
         key,
         uploadToken,
-        url: await put(key, type, size),
-        thumbUrl: b.thumb ? await put(`thumbs/${base}.jpg`, "image/jpeg") : null,
-        compatibleUrl: /^video\//.test(type) ? await put(`compatible-v2/${base}.mp4`, "video/mp4") : null,
+        url: await put(`_staging/${uploadToken}/media`, type, size),
+        thumbUrl: b.thumb ? await put(`_staging/${uploadToken}/thumb.jpg`, "image/jpeg") : null,
+        compatibleUrl: /^video\//.test(type) ? await put(`_staging/${uploadToken}/compatible.mp4`, "video/mp4") : null,
       });
     }
     if (req.query.action === "finalizeUpload") {
