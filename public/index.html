@@ -700,6 +700,10 @@ async function upload(files, when) {
           throw new Error("Video conversion failed. Please try uploading the video again.");
         }
       }
+      if (r.uploadToken) {
+        try { await api("finalizeUpload", { key: r.key, uploadToken: r.uploadToken }); }
+        catch (e) { console.warn("Upload finalization failed; stale-upload cleanup will retry later.", e); }
+      }
     } catch (e) { errs.push(e); failed.push(f); }
     sent[i] = files[i].size; done++; show();
   };
