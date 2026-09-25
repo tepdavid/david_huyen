@@ -49,6 +49,20 @@ const move = async (from, to) => {
   await s3.send(new CopyObjectCommand({ Bucket, CopySource: `${Bucket}/${enc(from)}`, Key: to }));
   await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: from }] } }));
 };
+// Optional companion objects (thumbnails/compatible copies) get a short retry window.
+// This avoids leaving a source-side orphan when R2 has a transient copy/delete failure.
+const moveOptional = async (from, to) => {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await move(from, to);
+      return true;
+    } catch (e) {
+      if (attempt === 2) return false;
+      await new Promise((resolve) => setTimeout(resolve, 150 * (attempt + 1)));
+    }
+  }
+  return false;
+};
 const each = async (arr, fn, n = 8) => { // run fn on every item, a few at a time; failures become null
   let i = 0; const out = [];
   await Promise.all(Array.from({ length: Math.min(n, arr.length) }, async () => { while (i < arr.length) { const j = i++; try { out[j] = await fn(arr[j]); } catch { out[j] = null; } } }));
@@ -341,10 +355,10 @@ module.exports = async (req, res) => {
       const r = await each(keys, async (k) => {
         const base = k.slice(6);
         await move(k, `trash/${at}~${base}`);
-        await move(`thumbs/${base}.jpg`, `trash-thumbs/${at}~${base}.jpg`).catch(() => {}); // a missing thumbnail is fine
+        await moveOptional(`thumbs/${base}.jpg`, `trash-thumbs/${at}~${base}.jpg`); // a missing thumbnail is fine
         // Keep generated playback copies with the deleted memory so restoring it restores the full memory.
-        await move(`compatible-v2/${base}.mp4`, `trash-compatible-v2/${at}~${base}.mp4`).catch(() => {});
-        await move(`compatible/${base}.mp4`, `trash-compatible/${at}~${base}.mp4`).catch(() => {});
+        await moveOptional(`compatible-v2/${base}.mp4`, `trash-compatible-v2/${at}~${base}.mp4`);
+        await moveOptional(`compatible/${base}.mp4`, `trash-compatible/${at}~${base}.mp4`);
         return 1;
       });
       return res.json({ done: r.filter(Boolean).length });
@@ -356,9 +370,9 @@ module.exports = async (req, res) => {
       const r = await each(keys, async (k) => {
         const rest = k.slice(6), base = rest.slice(rest.indexOf("~") + 1);
         await move(k, `media/${base}`);
-        await move(`trash-thumbs/${rest}.jpg`, `thumbs/${base}.jpg`).catch(() => {});
-        await move(`trash-compatible-v2/${rest}.mp4`, `compatible-v2/${base}.mp4`).catch(() => {});
-        await move(`trash-compatible/${rest}.mp4`, `compatible/${base}.mp4`).catch(() => {});
+        await moveOptional(`trash-thumbs/${rest}.jpg`, `thumbs/${base}.jpg`);
+        await moveOptional(`trash-compatible-v2/${rest}.mp4`, `compatible-v2/${base}.mp4`);
+        await moveOptional(`trash-compatible/${rest}.mp4`, `compatible/${base}.mp4`);
         return 1;
       });
       return res.json({ done: r.filter(Boolean).length });
