@@ -14,7 +14,7 @@ const isVideo = k => /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpeg|mpg)$/i.test(k);
     const r=await s3.send(new ListObjectsV2Command({Bucket:E.R2_BUCKET,ContinuationToken:token})); token=r.NextContinuationToken;
     for(const o of r.Contents||[]) {
       if(!o.Key.startsWith("media/") || !isVideo(o.Key.slice(6))) continue;
-      const base=o.Key.slice(6), out=`compatible/${base}.mp4`; n++;
+      const base=o.Key.slice(6), outputKey=`compatible-v2/${base}.mp4`; n++;
       try { await s3.send(new HeadObjectCommand({Bucket:E.R2_BUCKET,Key:outputKey})); console.log(`OK  ${base}`); continue; } catch {}
       const tmpIn=path.join(os.tmpdir(),`in-${crypto.randomBytes(5).toString("hex")}`), tmpOut=path.join(os.tmpdir(),`out-${crypto.randomBytes(5).toString("hex")}.mp4`);
       try {
