@@ -187,7 +187,7 @@ const $ = id => document.getElementById(id);
 const live = () => tg && tg.initData;
 const serverMode = () => live() || !PREVIEW;
 const browser = () => !live();
-let all = [], items = [], idx = 0, tt, cat = "image", lastCat = "image", session = "", favs = new Set();
+let all = [], items = [], idx = 0, tt, cat = "image", lastCat = "image", session = "", favs = new Set(), catalogStats = { images: 0, videos: 0, other: 0, favorites: 0 };
 let sortMode = localStorage.getItem("memorySort") || "newest", query = "", themeMode = localStorage.getItem("memoryTheme") || "auto";
 $("t").textContent = TITLE; $("sub").textContent = SUBTITLE;
 function applyTheme(){ if(themeMode === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme=themeMode; $("themeBtn").textContent=themeMode==="dark"?"☾":themeMode==="light"?"☀":"◐"; }
@@ -222,17 +222,35 @@ const demo = () => Array.from({ length: 12 }, (_, i) => {
 });
 
 function apply() {
+  renderLimit = 300;
   if (selecting) setSel(false);
   if (cat !== "fav" && cat !== "all") lastCat = cat;
-  items = (cat === "fav" ? all.filter(i => favs.has(i.key)) : cat === "all" ? all.slice() : cat === "other" ? all.filter(i => i.timeline === "other") : all.filter(i => i.type === cat));
-  if(query){ const q=query.toLowerCase(); items=items.filter(i => String(i.key).toLowerCase().includes(q) || fmt(i.date,{year:"numeric",month:"long",day:"numeric"}).toLowerCase().includes(q)); }
+  const q = query.toLowerCase();
+  const wantFav = cat === "fav", wantAll = cat === "all", wantOther = cat === "other";
+  const next = [];
+  let images = 0, videos = 0, other = 0, favorites = 0;
+  for (const it of all) {
+    if (it.type === "video") videos++; else images++;
+    if (it.timeline === "other") other++;
+    if (favs.has(it.key)) favorites++;
+    const categoryMatch = wantFav ? favs.has(it.key) : wantAll ? true : wantOther ? it.timeline === "other" : it.type === cat;
+    if (!categoryMatch) continue;
+    if (q) {
+      const dateText = it._searchDate || (it._searchDate = fmt(it.date,{year:"numeric",month:"long",day:"numeric"}).toLowerCase());
+      if (!String(it.key).toLowerCase().includes(q) && !dateText.includes(q)) continue;
+    }
+    next.push(it);
+  }
+  catalogStats = { images, videos, other, favorites };
+  items = next;
   items.sort((a,b)=>sortMode === "oldest" ? a.date-b.date : b.date-a.date);
+  calendarCache = null;
   $("allBtn").textContent = "All" + (all.length ? ` (${all.length})` : ""); $("allBtn").classList.toggle("on", cat === "all");
   favLabel();
   $("trBtn").textContent = "Recently deleted" + (trashItems.length ? ` (${trashItems.length})` : "");
   document.querySelectorAll("#seg button").forEach(b => b.classList.toggle("on", b.dataset.c === cat));
-  $("cp").textContent = all.filter(i => i.type === "image").length;
-  $("cv").textContent = all.filter(i => i.type === "video").length;
+  $("cp").textContent = images;
+  $("cv").textContent = videos;
   draw();
 }
 $("seg").onclick = e => { const b = e.target.closest("button"); if (!b) return; cat = b.dataset.c; apply(); scrollTo(0, 0); };
@@ -253,34 +271,84 @@ const yi = y => ICONS[(y * 11 + 2) % ICONS.length];
 const mname = (y, m, long) => new Date(y, m, 1).toLocaleDateString(undefined, long ? { month: "long", year: "numeric" } : { month: "short" });
 const mlong = (y, m) => new Date(y, m, 1).toLocaleDateString(undefined, { month: "long" });
 
-function calendar() {
-  const ys={},ms={};
-  items.filter(it=>it.timeline!=="other").forEach(it=>{const d=new Date(it.date),y=d.getFullYear(),m=d.getMonth();(ys[y]=ys[y]||{})[m]=(ys[y][m]||0)+1;});
+let calendarCache = null;
+function buildCalendar() {
+  const ys={}, ms={}, stats={};
+  for (const it of items) {
+    if (it.timeline === "other") continue;
+    const d=new Date(it.date), y=d.getFullYear(), m=d.getMonth();
+    (ys[y]=ys[y]||{})[m]=(ys[y][m]||0)+1;
+    const st=stats[y] || (stats[y]={photos:0,videos:0});
+    if (it.type === "video") st.videos++; else st.photos++;
+  }
   if(cat!=="fav"&&cat!=="all"&&cat!=="other") for(let y=RANGE.from[0];y<=RANGE.to[0];y++) for(let m=y===RANGE.from[0]?RANGE.from[1]:0;m<=(y===RANGE.to[0]?RANGE.to[1]:11);m++)(ms[y]=ms[y]||new Set()).add(m);
   Object.keys(ys).forEach(y=>Object.keys(ys[y]).forEach(m=>(ms[y]=ms[y]||new Set()).add(+m)));
-  return {ys,ms};
+  return {ys,ms,stats};
+}
+function calendar() {
+  if (!calendarCache) calendarCache = buildCalendar();
+  return calendarCache;
 }
 const countLabel=list=>{const p=list.filter(i=>i.type==="image").length,v=list.filter(i=>i.type==="video").length;return [p&&`(${p} ${p===1?"photo":"photos"})`,v&&`(${v} ${v===1?"video":"videos"})`].filter(Boolean).join(", ");};
 
+let renderLimit = 300;
 function draw() {
   $("n").textContent=all.length+(all.length===1?" memory":" memories");
-  const {ms}=calendar(),what=cat==="video"?"videos":cat==="fav"?"favorites":cat==="all"?"memories":cat==="other"?"other memories":"photos",by={},other=[];
-  items.forEach((it,i)=>{if(it.timeline==="other") other.push(i); else {const d=new Date(it.date),k=d.getFullYear()+"-"+d.getMonth();(by[k]=by[k]||[]).push(i);}});
-  let h=items.length?"":(cat==="fav"?`<p class="empty">No favorites yet. Tap the ♡ on any photo or video.</p>`:cat==="all"?`<p class="empty">Nothing here yet. Tap + to add photos and videos.</p>`:`<p class="empty">No ${what} yet. Tap + to add some.</p>`);
-  Object.keys(ms).sort((a,b)=>b-a).forEach(y=>{const yearItems=all.filter(i=>i.timeline!=="other" && new Date(i.date).getFullYear()===+y);h+=`<h3 class="yr" id="y-${y}">${yi(+y)} ${y} <small>${countLabel(yearItems)}</small></h3>`;[...ms[y]].sort((a,b)=>b-a).forEach(m=>{const list=by[y+"-"+m]||[],label=countLabel(list.map(i=>items[i]));h+=`<h2 id="m-${y}-${m}">${mi(+y,m)} ${mlong(+y,m)}${label?` <small>${label}</small>`:""}</h2>`;if(!list.length)h+=`<p class="none">No ${what} yet</p>`;else if(sortMode==="moments"){const days={};[...list].sort((a,b)=>items[a].date-items[b].date).forEach(i=>{const d=new Date(items[i].date),k=`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;(days[k]=days[k]||[]).push(i);});Object.keys(days).sort((a,b)=>new Date(a)-new Date(b)).forEach(k=>{const d=new Date(k),label=d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});h+=`<div class="momentHead">${label}<small>${countLabel(days[k].map(i=>items[i]))}</small></div><div class="grid">${days[k].map(tile).join("")}</div>`;});}else h+=`<div class="grid">${list.map(tile).join("")}</div>`;});});
+  const {ms,stats}=calendar(),what=cat==="video"?"videos":cat==="fav"?"favorites":cat==="all"?"memories":cat==="other"?"other memories":"photos";
+  const by={},other=[];
+  items.forEach((it,i)=>{if(i>=renderLimit)return;if(it.timeline==="other") other.push(i); else {const d=new Date(it.date),k=d.getFullYear()+"-"+d.getMonth();(by[k]=by[k]||[]).push(i);}});
+  const visibleCount=Math.min(renderLimit,items.length);
+  let h=visibleCount?"":(cat==="fav"?`<p class="empty">No favorites yet. Tap the ♡ on any photo or video.</p>`:cat==="all"?`<p class="empty">Nothing here yet. Tap + to add photos and videos.</p>`:`<p class="empty">No ${what} yet. Tap + to add some.</p>`);
+  Object.keys(ms).sort((a,b)=>b-a).forEach(y=>{
+    const st=stats[y] || {photos:0,videos:0};
+    const yearLabel=[st.photos&&`(${st.photos} ${st.photos===1?"photo":"photos"})`,st.videos&&`(${st.videos} ${st.videos===1?"video":"videos"})`].filter(Boolean).join(", ");
+    h+=`<h3 class="yr" id="y-${y}">${yi(+y)} ${y} <small>${yearLabel}</small></h3>`;
+    [...ms[y]].sort((a,b)=>b-a).forEach(m=>{
+      const list=by[y+"-"+m]||[],label=countLabel(list.map(i=>items[i]));
+      h+=`<h2 id="m-${y}-${m}">${mi(+y,m)} ${mlong(+y,m)}${label?` <small>${label}</small>`:""}</h2>`;
+      if(!list.length) h+=`<p class="none">No ${what} yet</p>`;
+      else if(sortMode==="moments"){
+        const days={};
+        [...list].sort((a,b)=>items[a].date-items[b].date).forEach(i=>{const d=new Date(items[i].date),k=`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;(days[k]=days[k]||[]).push(i);});
+        Object.keys(days).sort((a,b)=>new Date(a)-new Date(b)).forEach(k=>{const d=new Date(k),label=d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});h+=`<div class="momentHead">${label}<small>${countLabel(days[k].map(i=>items[i]))}</small></div><div class="grid">${days[k].map(tile).join("")}</div>`;});
+      } else h+=`<div class="grid">${list.map(tile).join("")}</div>`;
+    });
+  });
   if(other.length){const oi=other.map(i=>items[i]);h+=`<h3 class="otherHead" id="other-section">📦 Others <small>${countLabel(oi)}</small></h3><div class="grid">${other.map(tile).join("")}</div>`;}
-  $("g").innerHTML=h;timeline();spy();
+  if(renderLimit < items.length) h+=`<div id="loadMoreSentinel" style="height:1px;margin:1px 0" aria-hidden="true"></div>`;
+  $("g").innerHTML=h; timeline(); spy(); observeMore();
 }
 
 function timeline() {
-  const { ys } = calendar();
+  const { ys, stats } = calendar();
   const years = Object.keys(ys).sort((a, b) => b - a);
   if (!years.length) { $("tl").innerHTML = ""; return; }
   if (!ys[selY]) selY = +years[0];
-  const n = y => countLabel(all.filter(i => i.timeline !== "other" && new Date(i.date).getFullYear() === +y));
+  const n = y => {
+    const st = stats[y] || { photos: 0, videos: 0 };
+    return (st.photos || 0) + (st.videos || 0);
+  };
   const months = Array.from({ length: 12 }, (_, m) => m);
   $("tl").innerHTML = `<div class="chips">${years.map(y => `<button class="chip ${y == selY ? "on" : ""}" data-y="${y}">${yi(+y)} ${y}${n(y) ? ` <small>${n(y)}</small>` : ""}</button>`).join("")}</div>` +
     `<div class="chips mo">${months.map(m => `<button class="chip ${currentMonth === m ? "on" : ""} ${ys[selY]?.[m] ? "" : "empty"}" data-m="${selY}-${m}">${mi(selY, m)} ${mname(selY, m)}</button>`).join("")}</div>`;
+}
+async function revealTimelineTarget(y, m) {
+  while (true) {
+    const target = items.findIndex(it => {
+      if (it.timeline === "other") return false;
+      const d = new Date(it.date);
+      return d.getFullYear() === y && (m == null || d.getMonth() === m);
+    });
+    if (target >= 0) {
+      if (target >= renderLimit) {
+        renderLimit = Math.min(items.length, Math.max(renderLimit + 300, target + 1));
+        draw();
+      }
+      return true;
+    }
+    if (listDone) return false;
+    await loadNextPage();
+  }
 }
 const satPx = () => parseFloat(getComputedStyle($("top")).top) || 0; // how far the pinned bar sits below the top edge
 function spy() {
@@ -302,15 +370,26 @@ $("tl").onclick = e => {
     const first = Object.keys(calendar().ys[selY] || {}).map(Number).sort((a, b) => a - b)[0];
     currentMonth = first ?? null;
     timeline();
-    const t = document.getElementById("y-" + selY);
-    if (t) t.scrollIntoView({ behavior: "smooth" });
+    if (!(await revealTimelineTarget(selY, currentMonth))) {
+      toast(`No ${what} in ${selY} yet`);
+      return;
+    }
+    requestAnimationFrame(() => {
+      const t = document.getElementById("y-" + selY);
+      if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
   else if (b.dataset.m) {
     const [y, m] = b.dataset.m.split("-").map(Number);
     selY = y; currentMonth = m; timeline();
-    const t = document.getElementById("m-" + b.dataset.m);
-    if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
-    else toast(`No ${what} in ${mname(y, m, true)} yet`);
+    if (!(await revealTimelineTarget(y, m))) {
+      toast(`No ${what} in ${mname(y, m, true)} yet`);
+      return;
+    }
+    requestAnimationFrame(() => {
+      const t = document.getElementById("m-" + b.dataset.m);
+      if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
   }
 };
 async function shareCurrent(){
@@ -328,31 +407,87 @@ async function refreshData(){ if($("refreshBtn")){ $("refreshBtn").classList.add
 
 async function load() {
   if (!live() && PREVIEW) { all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode."; return; }
-  try { const r = await api("list"); all = r.items; trashItems = r.trash || []; favs = new Set(r.favs || []); updateStorage(r.storageBytes || 0); apply(); }
-  catch (e) { if (e.message === "locked") return; $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
+  try {
+    listCursor = null; listLoading = true; listDone = false; storageLoadedBytes = 0; all = []; trashItems = []; favs = new Set();
+    const r = await api("list", {});
+    all = r.items || [];
+    listCursor = r.nextCursor || null;
+    listDone = !listCursor;
+    trashItems = r.trash || [];
+    favs = new Set(r.favs || []);
+    storageLoadedBytes = Number(r.storageBytes) || 0;
+    apply();
+    if (listDone) updateStorage(storageLoadedBytes);
+  } catch (e) {
+    if (e.message === "locked") return;
+    $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Unable to load your memories. Close and reopen the app to try again."}</p>`;
+  } finally { listLoading = false; }
 }
 
-function show(i) {
+async function show(i) {
   idx = (i + items.length) % items.length;
   const it = items[idx];
-  if (it.type === "video" && !it.url.startsWith("data:")) {
-    const poster = it.thumb ? ` poster="${it.thumb}"` : "";
-    // Playback is always direct. Conversion is done only during upload, never when a memory is opened.
-    if (it.compatible) {
-      $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
-      const v = $("m").querySelector("video");
-      v.addEventListener("error", () => {
-        $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be played.</p><small>The browser-compatible video copy is unavailable. Please upload the video again.</small></div>`;
-      }, { once: true });
-    } else {
-      $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video is not ready for playback.</p><small>Please upload this video again. No conversion is done while viewing.</small></div>`;
+  try {
+    if (!it.url) {
+      const r = await api("resolve", { key: it.key, playKey: it.playKey || it.key });
+      it.url = r.url;
+      if (r.sourceUrl) it.sourceUrl = r.sourceUrl;
     }
-  } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
-  $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-  $("v").hidden = false;
-  favIcon();
+    if (it.type === "video" && !it.url.startsWith("data:")) {
+      const poster = it.thumb ? ` poster="${it.thumb}"` : "";
+      if (it.compatible) {
+        $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
+        const v = $("m").querySelector("video");
+        v.addEventListener("error", () => {
+          $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be played.</p><small>The browser-compatible video copy is unavailable. Please upload the video again.</small></div>`;
+        }, { once: true });
+      } else {
+        $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video is not ready for playback.</p><small>Please upload this video again. No conversion is done while viewing.</small></div>`;
+      }
+    } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
+    $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+    $("v").hidden = false;
+    favIcon();
+  } catch {
+    toast("Couldn't open this memory. Please try again.");
+  }
 }
 const close = () => { $("v").hidden = true; $("m").innerHTML = ""; if (cat === "fav") apply(); };
+let loadMoreObserver = null;
+async function loadNextPage() {
+  if (listLoading || listDone) return;
+  listLoading = true;
+  try {
+    const previousLimit = renderLimit;
+    const r = await api("list", { cursor: listCursor });
+    if (r.items?.length) all = all.concat(r.items);
+    listCursor = r.nextCursor || null;
+    listDone = !listCursor;
+    if (Number.isFinite(r.storageBytes)) storageLoadedBytes += r.storageBytes;
+    if (r.trash?.length) trashItems = r.trash;
+    if (Array.isArray(r.favs)) favs = new Set(r.favs);
+    apply();
+    renderLimit = Math.min(items.length, Math.max(300, previousLimit + 300));
+    draw();
+    if (listDone) updateStorage(storageLoadedBytes);
+  } catch (e) {
+    if (e.message === "locked") return;
+    toast("Unable to load more memories. Please try again.");
+  } finally {
+    listLoading = false;
+  }
+}
+function observeMore() {
+  if (loadMoreObserver) loadMoreObserver.disconnect();
+  const sentinel = $("loadMoreSentinel");
+  if (!sentinel || listDone) return;
+  loadMoreObserver = new IntersectionObserver(entries => {
+    if (!entries.some(x => x.isIntersecting)) return;
+    loadNextPage();
+  }, { rootMargin: "900px 0px" });
+  loadMoreObserver.observe(sentinel);
+}
+
 $("g").onclick = e => {
   const hv = e.target.closest(".hv");
   if (hv) { const k = items[+hv.closest(".tile").dataset.i].key; setFav([k], !favs.has(k)); return; }
@@ -455,14 +590,32 @@ async function why(e) {
   return { "401": "Your Telegram login expired. Close and reopen the app.", "403": "This Telegram account isn't on the allowed list.",
     "400": "The server rejected the file (type or size).", "404": "The upload service isn't deployed (the /api folder is missing)." }[m] || (m === "Failed to fetch" ? "Couldn't reach the server. Check your connection." : m);
 }
-const putX = (u, b, t, on) => new Promise((res, rej) => { // upload with byte-by-byte progress
-  const x = new XMLHttpRequest(); x.open("PUT", u); x.setRequestHeader("Content-Type", t);
-  x.upload.onprogress = e => on && on(e.loaded);
-  x.onload = () => x.status >= 200 && x.status < 300 ? res() : rej(new Error("Storage refused the file (error " + x.status + "). Check the R2 API token has Object Read & Write for this bucket."));
-  x.onerror = () => rej(new Error("Storage blocked the upload. Add this exact address to the R2 bucket's CORS rule (AllowedOrigins): " + location.origin));
-  x.send(b);
-});
+async function putX(u, b, t, on) { // upload with progress and bounded retry for transient network/storage failures
+  let last;
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      await new Promise((res, rej) => {
+        const x = new XMLHttpRequest(); x.open("PUT", u); x.setRequestHeader("Content-Type", t);
+        x.upload.onprogress = e => on && on(e.loaded);
+        x.onload = () => x.status >= 200 && x.status < 300
+          ? res()
+          : rej(Object.assign(new Error("Storage refused the file (error " + x.status + "). Check the R2 API token has Object Read & Write for this bucket."), { status: x.status }));
+        x.onerror = () => rej(new Error("Storage blocked the upload. Add this exact address to the R2 bucket's CORS rule (AllowedOrigins): " + location.origin));
+        x.send(b);
+      });
+      return;
+    } catch (e) {
+      last = e;
+      const retryable = !e.status || e.status === 408 || e.status === 429 || e.status >= 500;
+      if (!retryable || attempt === 2) throw e;
+      await new Promise(r => setTimeout(r, 700 * (attempt + 1)));
+    }
+  }
+  throw last;
+}
 let ffmpegInstance = null, ffmpegLoading = null;
+let ffmpegJobTail = Promise.resolve();
+function withFFmpegLock(job) { const run = ffmpegJobTail.then(job, job); ffmpegJobTail = run.catch(() => {}); return run; }
 async function getFFmpeg() {
   if (ffmpegInstance) return ffmpegInstance;
   if (ffmpegLoading) return ffmpegLoading;
@@ -485,36 +638,38 @@ async function getFFmpeg() {
   try { return await ffmpegLoading; } finally { ffmpegLoading = null; }
 }
 async function makeCompatibleVideo(file, progress) {
-  const ff = await getFFmpeg();
-  const ext = (file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "") || "mp4";
-  const input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
-  const output = input + ".mp4";
-  ff.FS("writeFile", input, await ff.__fetchFile(file));
-  const cleanup = () => { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} };
-  try {
-    // First pass: conservative H.264/AAC profile that plays in Telegram WebView, iOS and Android.
+  return withFFmpegLock(async () => {
+    const ff = await getFFmpeg();
+    const ext = (file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "") || "mp4";
+    const input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${ext}`;
+    const output = input + ".mp4";
+    ff.FS("writeFile", input, await ff.__fetchFile(file));
+    const cleanup = () => { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} };
     try {
-      await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-profile:v", "baseline", "-level", "3.1", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\,1280)/2)*2:trunc(min(ih\,720)/2)*2:force_original_aspect_ratio=decrease", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "96k", "-ar", "44100", output);
-    } catch (first) {
-      // Fallback for difficult/large sources: remove audio and use a very small H.264 copy.
-      cleanup();
-      ff.FS("writeFile", input, await ff.__fetchFile(file));
-      await ff.run("-i", input, "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-profile:v", "baseline", "-level", "3.1", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\,960)/2)*2:trunc(min(ih\,540)/2)*2:force_original_aspect_ratio=decrease", "-movflags", "+faststart", output);
-    }
-    const data = ff.FS("readFile", output);
-    if (!data || !data.length) throw new Error("Video conversion produced no output");
-    progress && progress(1);
-    return new Blob([data.buffer], { type: "video/mp4" });
-  } finally { cleanup(); }
+      try {
+        await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "24", "-profile:v", "baseline", "-level", "3.1", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\\,1280)/2)*2:trunc(min(ih\\,720)/2)*2:force_original_aspect_ratio=decrease", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "96k", "-ar", "44100", output);
+      } catch (first) {
+        cleanup();
+        ff.FS("writeFile", input, await ff.__fetchFile(file));
+        await ff.run("-i", input, "-map", "0:v:0", "-an", "-c:v", "libx264", "-preset", "ultrafast", "-crf", "28", "-profile:v", "baseline", "-level", "3.1", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\\,960)/2)*2:trunc(min(ih\\,540)/2)*2:force_original_aspect_ratio=decrease", "-movflags", "+faststart", output);
+      }
+      const data = ff.FS("readFile", output);
+      if (!data || !data.length) throw new Error("Video conversion produced no output");
+      progress && progress(1);
+      return new Blob([data.buffer], { type: "video/mp4" });
+    } finally { cleanup(); }
+  });
 }
 async function makeVideoThumb(videoBlob) {
-  const ff = await getFFmpeg(), input = `thumb-in-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`, output = input + ".jpg";
-  ff.FS("writeFile", input, await ff.__fetchFile(videoBlob));
-  try {
-    await ff.run("-ss", "0.5", "-i", input, "-frames:v", "1", "-vf", "scale=trunc(min(iw\,900)/2)*2:trunc(min(ih\,900)/2)*2", "-q:v", "3", output);
-    const data = ff.FS("readFile", output);
-    return new Blob([data.buffer], { type: "image/jpeg" });
-  } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
+  return withFFmpegLock(async () => {
+    const ff = await getFFmpeg(), input = `thumb-in-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`, output = input + ".jpg";
+    ff.FS("writeFile", input, await ff.__fetchFile(videoBlob));
+    try {
+      await ff.run("-ss", "0.5", "-i", input, "-frames:v", "1", "-vf", "scale=trunc(min(iw\\,900)/2)*2:trunc(min(ih\\,900)/2)*2", "-q:v", "3", output);
+      const data = ff.FS("readFile", output);
+      return new Blob([data.buffer], { type: "image/jpeg" });
+    } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
+  });
 }
 let busy = false;
 async function upload(files, when) {
@@ -541,9 +696,23 @@ async function upload(files, when) {
           try { const vthumb = await makeVideoThumb(compatible); if (vthumb && r.thumbUrl) await putX(r.thumbUrl, vthumb, "image/jpeg"); } catch (e) { console.warn("Video thumbnail generation failed", e); }
         } catch (e) {
           // Never leave an original that the app cannot play directly. Conversion happens at upload time only.
-          try { await api("cleanupUpload", { key: r.key }); } catch {}
+          try { await api("cleanupUpload", { key: r.key, uploadToken: r.uploadToken }); } catch {}
           throw new Error("Video conversion failed. Please try uploading the video again.");
         }
+      }
+      if (r.uploadToken) {
+        let finalized = false;
+        let lastError;
+        for (let attempt = 0; attempt < 3 && !finalized; attempt++) {
+          try {
+            await api("finalizeUpload", { key: r.key, uploadToken: r.uploadToken });
+            finalized = true;
+          } catch (e) {
+            lastError = e;
+            if (attempt < 2) await new Promise(resolve => setTimeout(resolve, 400 * (attempt + 1)));
+          }
+        }
+        if (!finalized) throw lastError || new Error("Upload finalization failed");
       }
     } catch (e) { errs.push(e); failed.push(f); }
     sent[i] = files[i].size; done++; show();
@@ -604,7 +773,7 @@ $("selDel").onclick = async () => {
   if (!sel.size) return toast("Tap the photos you want to delete");
   const n = sel.size;
   if (!await ask(`Move ${n} ${n === 1 ? "item" : "items"} to Recently deleted? ${n === 1 ? "It disappears" : "They disappear"} for both of you and ${n === 1 ? "is" : "are"} kept for 30 days.`)) return;
-  try { await act("delete", [...sel]); setSel(false); toast(`Moved ${n} to Recently deleted`); await refresh(); } catch { toast("Couldn't delete. Try again."); }
+  try { const result = await act("delete", [...sel]); setSel(false); if (result?.partial) toast(`Moved ${n} to Recently deleted, but ${result.partial} item${result.partial === 1 ? "" : "s"} need companion-file cleanup.`); else toast(`Moved ${n} to Recently deleted`); await refresh(); } catch { toast("Couldn't delete. Try again."); }
 };
 
 const daysLeft = i => Math.max(1, Math.ceil((i.deletedAt + 30 * 864e5 - Date.now()) / 864e5));
@@ -622,7 +791,7 @@ $("trAll").onclick = () => { const full = trashItems.length && trashItems.every(
 $("trRes").onclick = async () => {
   if (!tsel.size) return toast("Tap the items you want back");
   const n = tsel.size;
-  try { await act("restore", [...tsel]); tsel.clear(); toast(`Restored ${n}`); await refresh(); drawTrash(); } catch { toast("Couldn't restore. Try again."); }
+  try { const result = await act("restore", [...tsel]); tsel.clear(); if (result?.partial) toast(`Restored ${n}, but ${result.partial} item${result.partial === 1 ? "" : "s"} are missing companion files.`); else toast(`Restored ${n}`); await refresh(); drawTrash(); } catch { toast("Couldn't restore. Try again."); }
 };
 $("trEr").onclick = async () => {
   if (!tsel.size) return toast("Tap the items to erase");
@@ -683,8 +852,9 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) hidde
 // Favorites
 const favIcon = () => { const on = favs.has(items[idx].key); $("fv").textContent = on ? "♥" : "♡"; $("fv").classList.toggle("on", on); };
 const favLabel = () => {
-  const n = all.filter(i => favs.has(i.key)).length;
-  $("favBtn").textContent = "♥ Favorite" + (n ? ` (${n})` : ""); $("favBtn").classList.toggle("on", cat === "fav"); $("otherBtn").textContent = "Others" + (all.filter(i => i.timeline === "other").length ? ` (${all.filter(i => i.timeline === "other").length})` : ""); $("otherBtn").classList.toggle("on", cat === "other");
+  const n = catalogStats.favorites;
+  $("favBtn").textContent = "♥ Favorite" + (n ? ` (${n})` : ""); $("favBtn").classList.toggle("on", cat === "fav");
+  $("otherBtn").textContent = "Others" + (catalogStats.other ? ` (${catalogStats.other})` : ""); $("otherBtn").classList.toggle("on", cat === "other");
 };
 function paintFavs() {
   if (cat === "fav" && $("v").hidden) return apply(); // an un-hearted item leaves the Favorite list
@@ -697,6 +867,7 @@ function paintFavs() {
 }
 async function setFav(keys, on) {
   keys.forEach(k => on ? favs.add(k) : favs.delete(k));
+  catalogStats.favorites = all.reduce((n, i) => n + (favs.has(i.key) ? 1 : 0), 0);
   paintFavs();
   try { if (serverMode()) await api("favorite", { keys, on }); }
   catch (e) { if (e.message === "locked") return; keys.forEach(k => on ? favs.delete(k) : favs.add(k)); paintFavs(); toast("Couldn't update favorites. Try again."); }

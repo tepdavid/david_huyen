@@ -1,0 +1,21 @@
+name: Validate
+
+on:
+  push:
+    branches: [main, fix/production-audit]
+  pull_request:
+    branches: [main]
+
+jobs:
+  node-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: node --check api/media.js
+      - run: node --check us-album-uploader/bulk-upload.js
+      - run: node --check us-album-uploader/repair-videos.js

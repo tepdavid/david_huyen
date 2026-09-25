@@ -20,7 +20,11 @@ const s3 = new S3Client({
 const TYPES = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", heic: "image/heic",
   mp4: "video/mp4", mov: "video/quicktime", m4v: "video/x-m4v", webm: "video/webm", "3gp": "video/3gpp", mkv: "video/x-matroska", avi: "video/x-msvideo" };
 const logFile = path.join(__dirname, ".uploaded.json");
-const done = fs.existsSync(logFile) ? JSON.parse(fs.readFileSync(logFile, "utf8")) : {};
+let done = {};
+try { done = fs.existsSync(logFile) ? JSON.parse(fs.readFileSync(logFile, "utf8")) : {}; } catch { done = {}; }
+const saveDone = () => {
+  const tmp = logFile + ".tmp"; fs.writeFileSync(tmp, JSON.stringify(done)); fs.renameSync(tmp, logFile);
+};
 
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
 const send = (Key, Body, ContentType) => new Upload({ client: s3, params: { Bucket: E.R2_BUCKET, Key, Body, ContentType } }).done();
@@ -38,9 +42,9 @@ async function compatibleVideo(file, base) {
 async function thumb(file, video) {
   try {
     if (!video) return await sharp(file).rotate().resize(400).jpeg({ quality: 80 }).toBuffer();
-    const tmp = path.join(require("os").tmpdir(), "us-thumb.jpg");
+    const tmp = path.join(require("os").tmpdir(), `us-thumb-${crypto.randomBytes(6).toString("hex")}.jpg`);
     execFileSync("ffmpeg", ["-y", "-ss", "1", "-i", file, "-frames:v", "1", "-vf", "scale=400:-2", tmp], { stdio: "ignore" });
-    return fs.readFileSync(tmp);
+    try { return fs.readFileSync(tmp); } finally { try { fs.unlinkSync(tmp); } catch {} }
   } catch { return null; } // no thumbnail (HEIC, or ffmpeg not installed): the app still works
 }
 
@@ -50,21 +54,44 @@ async function thumb(file, video) {
   let ok = 0, skipped = 0, failed = 0;
   for (const [n, f] of files.entries()) {
     const st = fs.statSync(f), sig = `${f}|${st.size}|${st.mtimeMs}`;
-    if (done[sig]) { skipped++; continue; }
+    const prior = done[sig];
     const type = TYPES[path.extname(f).slice(1).toLowerCase()], video = type.startsWith("video");
+    // Legacy boolean records have no R2 base key, so keep them skipped to avoid duplicate uploads.
+    // New object records retain the base and can resume missing video companions safely.
+    if (prior === true || (prior && typeof prior === "object" && prior.base && (!video || (prior.compatible && prior.thumb)))) { skipped++; continue; }
     try {
       let ts = st.mtimeMs;
       if (!video) { try { const x = await exifr.parse(f, ["DateTimeOriginal"]); if (x && x.DateTimeOriginal) ts = +x.DateTimeOriginal; } catch {} }
       // A folder named like 2024-05 (or 2024_5) puts its files in that month, keeping each file's day when it fits
       const seg = path.relative(root, f).split(path.sep).slice(0, -1).find(x => /^\d{4}[-_. ]\d{1,2}(\D|$)/.test(x));
       if (seg) { const [, Y, M] = seg.match(/^(\d{4})[-_. ](\d{1,2})/), d = new Date(ts); d.setFullYear(+Y, +M - 1, Math.min(d.getDate(), new Date(+Y, +M, 0).getDate())); ts = d.getTime(); }
-      const base = `${Math.round(ts)}-${crypto.randomBytes(4).toString("hex")}-${path.basename(f).replace(/[^\w.-]+/g, "_").slice(-60)}`;
-      await send("media/" + base, fs.createReadStream(f), type);
-      if (video) { try { await compatibleVideo(f, base); } catch (e) { console.warn(`Browser-compatible copy failed for ${path.basename(f)}: ${e.message}`); } }
-      const t = await thumb(f, video);
-      if (t) await send(`thumbs/${base}.jpg`, t, "image/jpeg");
-      done[sig] = true; fs.writeFileSync(logFile, JSON.stringify(done)); ok++;
-      console.log(`[${n + 1}/${files.length}] ${path.basename(f)}`);
+      const base = prior && typeof prior === "object" && prior.base
+        ? prior.base
+        : `${Math.round(ts)}-${crypto.randomBytes(4).toString("hex")}-${path.basename(f).replace(/[^\w.-]+/g, "_").slice(-60)}`;
+      const state = prior && typeof prior === "object" && prior.base
+        ? prior
+        : { base, uploaded: false, compatible: !video, thumb: false };
+      if (!state.uploaded) {
+        await send("media/" + base, fs.createReadStream(f), type);
+        state.uploaded = true; done[sig] = state; saveDone();
+      }
+      if (video && !state.compatible) {
+        try {
+          await compatibleVideo(f, base);
+          state.compatible = true; done[sig] = state; saveDone();
+        } catch (e) { console.warn(`Browser-compatible copy failed for ${path.basename(f)}: ${e.message}`); }
+      }
+      if (!state.thumb) {
+        const t = await thumb(f, video);
+        if (t) { await send(`thumbs/${base}.jpg`, t, "image/jpeg"); state.thumb = true; done[sig] = state; saveDone(); }
+      }
+      if (!video || (state.compatible && state.thumb)) {
+        done[sig] = state; saveDone(); ok++;
+      } else {
+        failed++;
+        console.warn(`Incomplete upload recorded for ${path.basename(f)}; re-run to retry missing companions.`);
+        continue;
+      }
     } catch (e) { failed++; console.error(`Failed: ${f} (${e.message})`); }
   }
   console.log(`Done. Uploaded ${ok}, skipped ${skipped}, failed ${failed}.`);
