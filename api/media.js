@@ -243,7 +243,7 @@ module.exports = async (req, res) => {
         let thumb = null, playKey = o.Key, compatible = false;
         try { await s3.send(new HeadObjectCommand({ Bucket, Key: tk })); thumb = await sign(tk); } catch {}
         if (type === "video") {
-          for (const candidate of [`_staging/${token}/compatible.mp4`]) {
+          for (const candidate of [`compatible-v2/${base}.mp4`, `compatible/${base}.mp4`]) {
             try { await s3.send(new HeadObjectCommand({ Bucket, Key: candidate })); playKey = candidate; compatible = true; break; } catch {}
           }
         }
