@@ -465,7 +465,7 @@ async function loadNextPage() {
     listDone = !listCursor;
     if (Number.isFinite(r.storageBytes)) storageLoadedBytes += r.storageBytes;
     if (r.trash?.length) trashItems = r.trash;
-    if (r.favs?.length || !listCursor) favs = new Set(r.favs || []);
+    if (Array.isArray(r.favs)) favs = new Set(r.favs);
     apply();
     renderLimit = Math.min(items.length, Math.max(300, previousLimit + 300));
     draw();
