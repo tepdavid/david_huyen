@@ -29,7 +29,7 @@ h2{font:600 14px Georgia,serif;color:var(--mute);padding:18px 18px 8px}
 .v{position:fixed;inset:0;background:#000;z-index:10;display:flex;flex-direction:column;justify-content:center;color:#fff}
 .v[hidden],#toast[hidden]{display:none}
 #m{flex:1;display:grid;place-items:center;min-height:0}
-#m img,#m video{max-width:100%;max-height:100%}
+#m img,#m video{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;background:#000}
 .bar{position:absolute;top:calc(10px + var(--sat));left:0;right:0;display:flex;justify-content:space-between;padding:0 12px}
 .bar button,.nav{width:42px;height:42px;border-radius:50%;background:#0009;font-size:18px;color:#fff}
 .nav{position:absolute;top:50%}#pv{left:8px}#nx{right:8px}
@@ -128,7 +128,7 @@ h1{font-size:32px}
 .hv{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;font-style:normal;font-size:15px;line-height:26px;text-align:center;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .hv::after{content:"";position:absolute;inset:-8px}
 .hv.on{background:rgba(255,255,255,.88);color:#ff4d75}
-</style>
+.vfail{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;width:100%;height:100%;color:#fff;text-align:center;padding:24px;box-sizing:border-box}.vfail img{width:auto!important;height:auto!important;max-width:80%;max-height:55%;border-radius:16px}.vfail p{margin:0;font-weight:700}.vfail small{max-width:420px;opacity:.72;line-height:1.4}</style>
 </head>
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
@@ -316,7 +316,16 @@ async function load() {
 function show(i) {
   idx = (i + items.length) % items.length;
   const it = items[idx];
-  $("m").innerHTML = it.type === "video" && !it.url.startsWith("data:") ? `<video src="${it.url}" controls playsinline autoplay></video>` : `<img src="${it.url}" alt="">`;
+  if (it.type === "video" && !it.url.startsWith("data:")) {
+    const poster = it.thumb ? ` poster="${it.thumb}"` : "";
+    $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
+    const v = $("m").querySelector("video");
+    v.addEventListener("error", () => {
+      if (it.thumb) {
+        $("m").innerHTML = `<div class="vfail"><img src="${it.thumb}" alt=""><p>This video needs a compatible format for this browser.</p><small>Keep the original memory; a browser-friendly copy can be created with the included video converter.</small></div>`;
+      }
+    }, { once: true });
+  } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
   $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   $("v").hidden = false;
   favIcon();

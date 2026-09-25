@@ -147,8 +147,11 @@ module.exports = async (req, res) => {
       const have = new Set(all.map((o) => o.Key));
       const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
       const items = await Promise.all(all.filter((o) => o.Key.startsWith("media/")).map(async (o) => {
-        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`;
-        return { key: o.Key, size: o.Size, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url: await sign(o.Key), thumb: have.has(tk) ? await sign(tk) : null };
+        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatible = `compatible/${base}.mp4`;
+        const type = kindOf(base);
+        // Prefer a browser-friendly H.264/AAC MP4 when a compatible copy has been created.
+        const playKey = type === "video" && have.has(compatible) ? compatible : o.Key;
+        return { key: o.Key, size: o.Size, date: Number(base.split("-")[0]) || 0, type, url: await sign(playKey), thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key };
       }));
       items.sort((x, y) => y.date - x.date);
       // Recently deleted lives under trash/<deletedAt>~<name>. Anything older than 30 days is erased here.

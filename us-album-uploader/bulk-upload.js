@@ -25,6 +25,16 @@ const done = fs.existsSync(logFile) ? JSON.parse(fs.readFileSync(logFile, "utf8"
 const walk = d => fs.readdirSync(d, { withFileTypes: true }).flatMap(e => e.isDirectory() ? walk(path.join(d, e.name)) : [path.join(d, e.name)]);
 const send = (Key, Body, ContentType) => new Upload({ client: s3, params: { Bucket: E.R2_BUCKET, Key, Body, ContentType } }).done();
 
+// Create a browser-friendly H.264/AAC MP4 alongside the original video.
+// The app automatically prefers this copy when it exists, so the original file stays untouched.
+async function compatibleVideo(file, base) {
+  const tmp = path.join(require("os").tmpdir(), `memory-${crypto.randomBytes(6).toString("hex")}.mp4`);
+  try {
+    execFileSync("ffmpeg", ["-y", "-i", file, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k", tmp], { stdio: "ignore" });
+    await send(`compatible/${base}.mp4`, fs.createReadStream(tmp), "video/mp4");
+  } finally { try { fs.unlinkSync(tmp); } catch {} }
+}
+
 async function thumb(file, video) {
   try {
     if (!video) return await sharp(file).rotate().resize(400).jpeg({ quality: 80 }).toBuffer();
@@ -50,6 +60,7 @@ async function thumb(file, video) {
       if (seg) { const [, Y, M] = seg.match(/^(\d{4})[-_. ](\d{1,2})/), d = new Date(ts); d.setFullYear(+Y, +M - 1, Math.min(d.getDate(), new Date(+Y, +M, 0).getDate())); ts = d.getTime(); }
       const base = `${Math.round(ts)}-${crypto.randomBytes(4).toString("hex")}-${path.basename(f).replace(/[^\w.-]+/g, "_").slice(-60)}`;
       await send("media/" + base, fs.createReadStream(f), type);
+      if (video) { try { await compatibleVideo(f, base); } catch (e) { console.warn(`Browser-compatible copy failed for ${path.basename(f)}: ${e.message}`); } }
       const t = await thumb(f, video);
       if (t) await send(`thumbs/${base}.jpg`, t, "image/jpeg");
       done[sig] = true; fs.writeFileSync(logFile, JSON.stringify(done)); ok++;
