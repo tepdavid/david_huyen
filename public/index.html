@@ -763,7 +763,7 @@ $("selDel").onclick = async () => {
   if (!sel.size) return toast("Tap the photos you want to delete");
   const n = sel.size;
   if (!await ask(`Move ${n} ${n === 1 ? "item" : "items"} to Recently deleted? ${n === 1 ? "It disappears" : "They disappear"} for both of you and ${n === 1 ? "is" : "are"} kept for 30 days.`)) return;
-  try { await act("delete", [...sel]); setSel(false); toast(`Moved ${n} to Recently deleted`); await refresh(); } catch { toast("Couldn't delete. Try again."); }
+  try { const result = await act("delete", [...sel]); setSel(false); if (result?.partial) toast(`Moved ${n} to Recently deleted, but ${result.partial} item${result.partial === 1 ? "" : "s"} need companion-file cleanup.`); else toast(`Moved ${n} to Recently deleted`); await refresh(); } catch { toast("Couldn't delete. Try again."); }
 };
 
 const daysLeft = i => Math.max(1, Math.ceil((i.deletedAt + 30 * 864e5 - Date.now()) / 864e5));
@@ -781,7 +781,7 @@ $("trAll").onclick = () => { const full = trashItems.length && trashItems.every(
 $("trRes").onclick = async () => {
   if (!tsel.size) return toast("Tap the items you want back");
   const n = tsel.size;
-  try { await act("restore", [...tsel]); tsel.clear(); toast(`Restored ${n}`); await refresh(); drawTrash(); } catch { toast("Couldn't restore. Try again."); }
+  try { const result = await act("restore", [...tsel]); tsel.clear(); if (result?.partial) toast(`Restored ${n}, but ${result.partial} item${result.partial === 1 ? "" : "s"} are missing companion files.`); else toast(`Restored ${n}`); await refresh(); drawTrash(); } catch { toast("Couldn't restore. Try again."); }
 };
 $("trEr").onclick = async () => {
   if (!tsel.size) return toast("Tap the items to erase");
