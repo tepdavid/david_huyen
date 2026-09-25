@@ -348,15 +348,15 @@ module.exports = async (req, res) => {
       return res.json({ url, sourceUrl });
     }
     if (req.query.action === "cleanupUpload") {
-      const key = String(b.key || "");
-      if (!/^media\/[\w.-]+$/.test(key)) return res.status(400).json({ error: "bad key" });
+      const key = String(b.key || ""), token = String(b.uploadToken || "");
+      if (!/^media\/[\w.-]+$/.test(key) || !/^\d+~[\w.-]+$/.test(token) || token.slice(token.indexOf("~") + 1) !== key.slice(6)) return res.status(400).json({ error: "bad key" });
       const base = key.slice(6);
       if (!(await hasUploadMarker(base))) return res.status(409).json({ error: "upload_not_active" });
       const objects = [
-        { Key: key },
-        { Key: `compatible-v2/${base}.mp4` },
-        { Key: `compatible/${base}.mp4` },
-        { Key: `thumbs/${base}.jpg` }
+        { Key: `_uploads/${token}` },
+        { Key: `_staging/${token}/media` },
+        { Key: `_staging/${token}/compatible.mp4` },
+        { Key: `_staging/${token}/thumb.jpg` }
       ];
       await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: objects } }));
       return res.json({ done: true });
