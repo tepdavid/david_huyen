@@ -192,7 +192,8 @@ module.exports = async (req, res) => {
       const base = key.slice(6);
       // The client converts the original bytes to H.264/AAC in WASM, then uploads this copy.
       const uploadKey = `compatible/${base}.mp4`;
-      return res.json({ uploadUrl: await put(uploadKey, "video/mp4"), playUrl: await sign(uploadKey), key: uploadKey });
+      const thumbKey = `thumbs/${base}.jpg`;
+      return res.json({ uploadUrl: await put(uploadKey, "video/mp4"), playUrl: await sign(uploadKey), thumbUrl: await put(thumbKey, "image/jpeg"), key: uploadKey });
     }
 
     if (req.query.action === "upload") {

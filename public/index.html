@@ -67,7 +67,7 @@ h2[id],.yr{scroll-margin-top:calc(270px + var(--sat))}
 .v{background:rgba(0,0,0,.82);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
 .bar button,.nav{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28)}
 .chip.empty{opacity:.5}
-.none{color:var(--mute);font-size:13px;padding:2px 18px 6px}
+.none{color:var(--mute);font-size:13px;padding:2px 18px 6px}.momentHead{display:flex;align-items:center;justify-content:space-between;padding:10px 18px 7px;font:600 13px Georgia,serif;color:var(--mute)}.momentHead small{font:11px system-ui,sans-serif;opacity:.7}
 h2 small{margin-left:8px;font:12px system-ui,sans-serif;opacity:.75}
 .sheet{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.4);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center}
 .sheet[hidden]{display:none}
@@ -136,7 +136,7 @@ h1{font-size:32px}
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
 <header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span><span id="storage"></span></header>
-<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="trBtn">Recently deleted</button><button id="searchBtn" class="icon" aria-label="Search" title="Search">⌕</button><div class="sortbox"><button id="sortBtn" class="icon" aria-label="Sort" title="Sort">↕</button><div id="sortMenu" class="sortmenu"><button data-sort="newest" class="on">Newest first</button><button data-sort="oldest">Oldest first</button></div></div><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div><div class="search" id="search"><input id="searchInput" type="search" placeholder="Search memories…" autocomplete="off"><button id="searchClear" aria-label="Clear search">✕</button></div></div></div>
+<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="trBtn">Recently deleted</button><button id="searchBtn" class="icon" aria-label="Search" title="Search">⌕</button><div class="sortbox"><button id="sortBtn" class="icon" aria-label="Sort" title="Sort">↕</button><div id="sortMenu" class="sortmenu"><button data-sort="newest" class="on">Newest first</button><button data-sort="oldest">Oldest first</button><button data-sort="moments">Smart moments</button></div></div><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div><div class="search" id="search"><input id="searchInput" type="search" placeholder="Search memories…" autocomplete="off"><button id="searchClear" aria-label="Clear search">✕</button></div></div></div>
 <div id="st"></div><div id="homehint" class="homehint">Your memories are organized automatically by year and month.</div>
 <main id="g"></main>
 <label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
@@ -269,7 +269,15 @@ function draw() {
     [...ms[y]].sort((a, b) => b - a).forEach(m => {
       const list = by[y + "-" + m] || [];
       h += `<h2 id="m-${y}-${m}">${mi(+y, m)} ${mlong(+y, m)}${list.length ? `<small>${list.length}</small>` : ""}</h2>`;
-      h += list.length ? `<div class="grid">${list.map(tile).join("")}</div>` : `<p class="none">No ${what} yet</p>`;
+      if (!list.length) h += `<p class="none">No ${what} yet</p>`;
+      else if (sortMode === "moments") {
+        const days = {};
+        [...list].sort((a,b) => items[a].date - items[b].date).forEach(i => { const d = new Date(items[i].date), k = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; (days[k] = days[k] || []).push(i); });
+        Object.keys(days).sort((a,b) => new Date(a)-new Date(b)).forEach(k => {
+          const d = new Date(k), label = d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
+          h += `<div class="momentHead">${label}<small>${days[k].length}</small></div><div class="grid">${days[k].map(tile).join("")}</div>`;
+        });
+      } else h += `<div class="grid">${list.map(tile).join("")}</div>`;
     });
   });
   $("g").innerHTML = h;
@@ -343,8 +351,10 @@ function show(i) {
     const poster = it.thumb ? ` poster="${it.thumb}"` : "";
     $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
     const v = $("m").querySelector("video");
-    v.addEventListener("error", async () => {
-      if (!it.sourceUrl) return;
+    let repairing = false;
+    const repairIfNeeded = async () => {
+      if (repairing || !it.sourceUrl) return;
+      repairing = true;
       $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>Preparing this video for your device…</p><small>The original is safe. This creates a browser-compatible copy once, then uses it for playback.</small></div>`;
       try {
         const url = await repairVideo(it);
@@ -354,7 +364,9 @@ function show(i) {
       } catch (e) {
         $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be converted for this browser.</p><small>The original memory is still preserved.</small></div>`;
       }
-    }, { once: true });
+    };
+    v.addEventListener("error", repairIfNeeded, { once: true });
+    v.addEventListener("loadedmetadata", () => { if (!v.videoWidth || !v.videoHeight) setTimeout(repairIfNeeded, 700); }, { once: true });
   } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
   $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   $("v").hidden = false;
@@ -496,11 +508,21 @@ async function makeCompatibleVideo(file, progress) {
   const ff = await getFFmpeg(), input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${(file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "")}`, output = input + ".mp4";
   ff.FS("writeFile", input, await ff.__fetchFile(file));
   try {
-    // Baseline/main-ish H.264 + yuv420p + AAC is intentionally conservative for Telegram WebView/iOS/Android browsers.
-    await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "23", "-profile:v", "main", "-level", "4.0", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k", "-ar", "48000", output);
+    // Very conservative browser profile: H.264 8-bit 4:2:0, max 1080p, AAC, fast-start MP4.
+    // This avoids the common HEVC/10-bit/4:2:2/high-level black-video failures in Telegram WebView.
+    await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-profile:v", "baseline", "-level", "4.0", "-pix_fmt", "yuv420p", "-vf", "scale=trunc(min(iw\,1920)/2)*2:trunc(min(ih\,1080)/2)*2:force_original_aspect_ratio=decrease,pad=ceil(iw/2)*2:ceil(ih/2)*2", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k", "-ar", "48000", output);
     const data = ff.FS("readFile", output);
     progress && progress(1);
     return new Blob([data.buffer], { type: "video/mp4" });
+  } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
+}
+async function makeVideoThumb(videoBlob) {
+  const ff = await getFFmpeg(), input = `thumb-in-${Date.now()}-${Math.random().toString(36).slice(2)}.mp4`, output = input + ".jpg";
+  ff.FS("writeFile", input, await ff.__fetchFile(videoBlob));
+  try {
+    await ff.run("-ss", "0.5", "-i", input, "-frames:v", "1", "-vf", "scale=trunc(min(iw\,900)/2)*2:trunc(min(ih\,900)/2)*2", "-q:v", "3", output);
+    const data = ff.FS("readFile", output);
+    return new Blob([data.buffer], { type: "image/jpeg" });
   } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
 }
 async function repairVideo(it) {
@@ -512,6 +534,11 @@ async function repairVideo(it) {
   const compatible = await makeCompatibleVideo(file);
   const r = await api("compatible", { key: it.key });
   await putX(r.uploadUrl, compatible, "video/mp4");
+  try {
+    const thumb = await makeVideoThumb(compatible);
+    if (thumb && r.thumbUrl) await putX(r.thumbUrl, thumb, "image/jpeg");
+    if (thumb) it.thumb = URL.createObjectURL(thumb);
+  } catch (e) { console.warn("Video thumbnail generation failed", e); }
   it.url = r.playUrl; it.compatible = true;
   return r.playUrl;
 }
@@ -525,15 +552,20 @@ async function upload(files, when) {
     const f = files[i], type = kind(f);
     try {
       if (!/^(image|video)\//.test(type)) throw new Error("This file type isn't supported: " + f.name);
-      const th = await makeThumb(f);
-      const r = await api("upload", { name: f.name, type, size: f.size, lastModified: when ? shift(f.lastModified, when) : f.lastModified, thumb: !!th });
+      // Video thumbnails are generated from the browser-compatible copy so even HEVC/10-bit sources get a real poster frame.
+      const isVideo = type.startsWith("video/");
+      const th = isVideo ? null : await makeThumb(f);
+      const r = await api("upload", { name: f.name, type, size: f.size, lastModified: when ? shift(f.lastModified, when) : f.lastModified, thumb: isVideo || !!th });
       await putX(r.url, f, type, n => { sent[i] = n; show(); });
       if (th && r.thumbUrl) { try { await put(r.thumbUrl, th, "image/jpeg"); } catch {} }
-      if (type.startsWith("video/") && r.compatibleUrl) {
+      if (isVideo && r.compatibleUrl) {
         try {
           show();
           const compatible = await makeCompatibleVideo(f, p => { sent[i] = Math.max(sent[i], f.size + Math.round(f.size * p)); show(); });
-          if (compatible) await putX(r.compatibleUrl, compatible, "video/mp4");
+          if (compatible) {
+            await putX(r.compatibleUrl, compatible, "video/mp4");
+            try { const vthumb = await makeVideoThumb(compatible); if (vthumb && r.thumbUrl) await putX(r.thumbUrl, vthumb, "image/jpeg"); } catch (e) { console.warn("Video thumbnail generation failed", e); }
+          }
         } catch (e) { console.warn("Compatible video copy failed", e); }
       }
     } catch (e) { errs.push(e); failed.push(f); }
