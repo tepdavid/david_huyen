@@ -64,8 +64,16 @@ const putState = (st) => s3.send(new PutObjectCommand({ Bucket, Key: STATE, Body
 // Favorites are one shared list of media keys, kept as a small file in the bucket
 const FAVS = "_meta/favorites.json";
 const getFavs = async () => {
-  try { const r = await s3.send(new GetObjectCommand({ Bucket, Key: FAVS })); const j = JSON.parse(await r.Body.transformToString()); return Array.isArray(j) ? j : []; }
-  catch (e) { if (e.name === "NoSuchKey" || (e.$metadata && e.$metadata.httpStatusCode === 404)) return []; throw e; } // never treat a failed read as "no favorites"
+  try {
+    const r = await s3.send(new GetObjectCommand({ Bucket, Key: FAVS }));
+    const raw = await r.Body.transformToString();
+    const j = JSON.parse(raw);
+    return Array.isArray(j) ? j.filter((x) => typeof x === "string") : [];
+  } catch (e) {
+    // Favorites are optional metadata. A missing, corrupt, or temporarily unreadable
+    // favorites file must never prevent the memories themselves from loading.
+    return [];
+  }
 };
 const putFavs = (a) => s3.send(new PutObjectCommand({ Bucket, Key: FAVS, Body: JSON.stringify(a), ContentType: "application/json" }));
 const dropFavs = async (bases) => { // forget favorites of files that were erased for good
@@ -146,13 +154,15 @@ module.exports = async (req, res) => {
       } while (tok);
       const have = new Set(all.map((o) => o.Key));
       const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
-      const items = await Promise.all(all.filter((o) => o.Key.startsWith("media/")).map(async (o) => {
+      const mediaObjects = all.filter((o) => typeof o.Key === "string" && o.Key.startsWith("media/") && o.Key.length > 6);
+      const itemResults = await each(mediaObjects, async (o) => {
         const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatible = `compatible/${base}.mp4`;
         const type = kindOf(base);
         // Prefer a browser-friendly H.264/AAC MP4 when a compatible copy has been created.
         const playKey = type === "video" && have.has(compatible) ? compatible : o.Key;
-        return { key: o.Key, size: o.Size, date: Number(base.split("-")[0]) || 0, type, url: await sign(playKey), thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key };
-      }));
+        return { key: o.Key, size: Number(o.Size) || 0, date: Number(base.split("-")[0]) || 0, type, url: await sign(playKey), thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key };
+      }, 8);
+      const items = itemResults.filter(Boolean);
       items.sort((x, y) => y.date - x.date);
       // Recently deleted lives under trash/<deletedAt>~<name>. Anything older than 30 days is erased here.
       const now = Date.now(), stale = [], staleBases = [], trash = [];
@@ -160,7 +170,9 @@ module.exports = async (req, res) => {
         const rest = o.Key.slice(6), cut = rest.indexOf("~"), at = Number(rest.slice(0, cut)), base = rest.slice(cut + 1), tk = `trash-thumbs/${rest}.jpg`;
         if (!(at > 0)) continue;
         if (now - at > 30 * 864e5) { stale.push(o.Key, tk); staleBases.push(base); continue; }
-        trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url: await sign(o.Key), thumb: have.has(tk) ? await sign(tk) : null });
+        try {
+          trash.push({ key: o.Key, deletedAt: at, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url: await sign(o.Key), thumb: have.has(tk) ? await sign(tk) : null });
+        } catch {}
       }
       for (let i = 0; i < stale.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: stale.slice(i, i + 500).map((Key) => ({ Key })) } }));
       if (staleBases.length) await dropFavs(staleBases).catch(() => {});
@@ -248,7 +260,7 @@ module.exports = async (req, res) => {
     }
     res.status(400).json({ error: "bad action" });
   } catch (e) {
-    console.error(e);
-    res.status(500).json({ error: "server" });
+    console.error("media API error", req.query.action, e && e.stack || e);
+    res.status(500).json({ error: "server", action: req.query.action || "unknown" });
   }
 };
