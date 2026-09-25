@@ -20,7 +20,7 @@ h1{font:italic 700 30px Georgia,"Times New Roman",serif;color:var(--acc)}
 h2{font:600 14px Georgia,serif;color:var(--mute);padding:18px 18px 8px}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:0 3px}
 .tile{position:relative;aspect-ratio:1;background:var(--card);overflow:hidden}
-.tile img{width:100%;height:100%;object-fit:cover;display:block}
+.tile img,.tileVid{width:100%;height:100%;object-fit:cover;display:block;background:#111}.tileVid{pointer-events:none}
 .tile b{position:absolute;right:6px;bottom:4px;color:#fff;text-shadow:0 1px 4px #000a;font-size:14px}
 .empty,#st{color:var(--mute);text-align:center;padding:40px 24px}
 #st{padding:6px 18px;font-size:12px}
@@ -67,7 +67,7 @@ h2[id],.yr{scroll-margin-top:calc(270px + var(--sat))}
 .v{background:rgba(0,0,0,.82);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
 .bar button,.nav{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28)}
 .chip.empty{opacity:.5}
-.none{color:var(--mute);font-size:13px;padding:2px 18px 6px}.momentHead{display:flex;align-items:center;justify-content:space-between;padding:10px 18px 7px;font:600 13px Georgia,serif;color:var(--mute)}.momentHead small{font:11px system-ui,sans-serif;opacity:.7}
+.none{color:var(--mute);font-size:13px;padding:2px 18px 6px}.otherHead{font:italic 700 28px Georgia,serif;color:var(--acc);padding:20px 18px 0;scroll-margin-top:calc(270px + var(--sat))}.otherHead small{font:12px system-ui,sans-serif;margin-left:8px;opacity:.75}.momentHead{display:flex;align-items:center;justify-content:space-between;padding:10px 18px 7px;font:600 13px Georgia,serif;color:var(--mute)}.momentHead small{font:11px system-ui,sans-serif;opacity:.7}
 h2 small{margin-left:8px;font:12px system-ui,sans-serif;opacity:.75}
 .sheet{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.4);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center}
 .sheet[hidden]{display:none}
@@ -136,7 +136,7 @@ h1{font-size:32px}
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
 <header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span><span id="storage"></span></header>
-<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="trBtn">Recently deleted</button><button id="searchBtn" class="icon" aria-label="Search" title="Search">⌕</button><div class="sortbox"><button id="sortBtn" class="icon" aria-label="Sort" title="Sort">↕</button><div id="sortMenu" class="sortmenu"><button data-sort="newest" class="on">Newest first</button><button data-sort="oldest">Oldest first</button><button data-sort="moments">Smart moments</button></div></div><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div><div class="search" id="search"><input id="searchInput" type="search" placeholder="Search memories…" autocomplete="off"><button id="searchClear" aria-label="Clear search">✕</button></div></div></div>
+<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="otherBtn">Others</button><button id="trBtn">Recently deleted</button><button id="searchBtn" class="icon" aria-label="Search" title="Search">⌕</button><div class="sortbox"><button id="sortBtn" class="icon" aria-label="Sort" title="Sort">↕</button><div id="sortMenu" class="sortmenu"><button data-sort="newest" class="on">Newest first</button><button data-sort="oldest">Oldest first</button><button data-sort="moments">Smart moments</button></div></div><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div><div class="search" id="search"><input id="searchInput" type="search" placeholder="Search memories…" autocomplete="off"><button id="searchClear" aria-label="Clear search">✕</button></div></div></div>
 <div id="st"></div><div id="homehint" class="homehint">Your memories are organized automatically by year and month.</div>
 <main id="g"></main>
 <label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
@@ -161,8 +161,9 @@ h1{font-size:32px}
   <h3 id="shT">Add memories</h3>
   <label class="opt"><input type="radio" name="dm" value="own" checked> Use each file's own date</label>
   <label class="opt"><input type="radio" name="dm" value="pick"> Put them all in this month:</label>
+  <label class="opt"><input type="radio" name="dm" value="other"> Others — unknown timeline</label>
   <div class="pick"><select id="mSel" aria-label="Month"></select><select id="ySel" aria-label="Year"></select></div>
-  <p class="note">Files without a date use today's date. With a chosen month, each file keeps its day of the month when it fits.</p>
+  <p class="note">Files without a date use today's date. Choose Others when you do not know the timeline; those memories stay together in Others.</p>
   <div class="acts"><button id="shC">Cancel</button><button id="shU" class="go">Upload</button></div>
 </div></div>
 <div class="v" id="v" hidden>
@@ -221,7 +222,7 @@ const demo = () => Array.from({ length: 12 }, (_, i) => {
 function apply() {
   if (selecting) setSel(false);
   if (cat !== "fav" && cat !== "all") lastCat = cat;
-  items = (cat === "fav" ? all.filter(i => favs.has(i.key)) : cat === "all" ? all.slice() : all.filter(i => i.type === cat));
+  items = (cat === "fav" ? all.filter(i => favs.has(i.key)) : cat === "all" ? all.slice() : cat === "other" ? all.filter(i => i.timeline === "other") : all.filter(i => i.type === cat));
   if(query){ const q=query.toLowerCase(); items=items.filter(i => String(i.key).toLowerCase().includes(q) || fmt(i.date,{year:"numeric",month:"long",day:"numeric"}).toLowerCase().includes(q)); }
   items.sort((a,b)=>sortMode === "oldest" ? a.date-b.date : b.date-a.date);
   $("allBtn").textContent = "All" + (all.length ? ` (${all.length})` : ""); $("allBtn").classList.toggle("on", cat === "all");
@@ -236,7 +237,7 @@ $("seg").onclick = e => { const b = e.target.closest("button"); if (!b) return; 
 
 const tile = i => {
   const it = items[i], src = it.thumb || (it.type === "image" ? it.url : "");
-  return `<button class="tile" data-i="${i}" aria-label="Open ${it.type} from ${fmt(it.date)}">${src ? `<img loading="lazy" src="${src}" alt="">` : ""}${it.type === "video" ? "<b>▶</b>" : ""}<span class="dateBadge">${new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span><i class="ck">✓</i><i class="hv${favs.has(it.key) ? " on" : ""}" aria-hidden="true">${favs.has(it.key) ? "♥" : "♡"}</i></button>`;
+  return `<button class="tile" data-i="${i}" aria-label="Open ${it.type} from ${fmt(it.date)}">${src ? `<img loading="lazy" src="${src}" alt="">` : it.type === "video" && it.url ? `<video class="tileVid" src="${it.url}" muted playsinline preload="metadata"></video>` : ""}${it.type === "video" ? "<b>▶</b>" : ""}<span class="dateBadge">${new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span><i class="ck">✓</i><i class="hv${favs.has(it.key) ? " on" : ""}" aria-hidden="true">${favs.has(it.key) ? "♥" : "♡"}</i></button>`;
 };
 
 // Timeline: every month of every year is shown, whether or not it has memories yet
@@ -251,37 +252,22 @@ const mname = (y, m, long) => new Date(y, m, 1).toLocaleDateString(undefined, lo
 const mlong = (y, m) => new Date(y, m, 1).toLocaleDateString(undefined, { month: "long" });
 
 function calendar() {
-  const ys = {}, ms = {};
-  items.forEach(it => { const d = new Date(it.date), y = d.getFullYear(), m = d.getMonth(); (ys[y] = ys[y] || {})[m] = (ys[y][m] || 0) + 1; });
-  if (cat !== "fav" && cat !== "all") for (let y = RANGE.from[0]; y <= RANGE.to[0]; y++) // Favorites only lists months that have hearts
-    for (let m = y === RANGE.from[0] ? RANGE.from[1] : 0; m <= (y === RANGE.to[0] ? RANGE.to[1] : 11); m++) (ms[y] = ms[y] || new Set()).add(m);
-  Object.keys(ys).forEach(y => Object.keys(ys[y]).forEach(m => (ms[y] = ms[y] || new Set()).add(+m)));
-  return { ys, ms };
+  const ys={},ms={};
+  items.filter(it=>it.timeline!=="other").forEach(it=>{const d=new Date(it.date),y=d.getFullYear(),m=d.getMonth();(ys[y]=ys[y]||{})[m]=(ys[y][m]||0)+1;});
+  if(cat!=="fav"&&cat!=="all"&&cat!=="other") for(let y=RANGE.from[0];y<=RANGE.to[0];y++) for(let m=y===RANGE.from[0]?RANGE.from[1]:0;m<=(y===RANGE.to[0]?RANGE.to[1]:11);m++)(ms[y]=ms[y]||new Set()).add(m);
+  Object.keys(ys).forEach(y=>Object.keys(ys[y]).forEach(m=>(ms[y]=ms[y]||new Set()).add(+m)));
+  return {ys,ms};
 }
+const countLabel=list=>{const p=list.filter(i=>i.type==="image").length,v=list.filter(i=>i.type==="video").length;return [p&&`(${p} ${p===1?"photo":"photos"})`,v&&`(${v} ${v===1?"video":"videos"})`].filter(Boolean).join(", ");};
 
 function draw() {
-  $("n").textContent = all.length + (all.length === 1 ? " memory" : " memories");
-  const { ms } = calendar(), what = cat === "video" ? "videos" : cat === "fav" ? "favorites" : cat === "all" ? "memories" : "photos", by = {};
-  items.forEach((it, i) => { const d = new Date(it.date), k = d.getFullYear() + "-" + d.getMonth(); (by[k] = by[k] || []).push(i); });
-  let h = items.length ? "" : (cat === "fav" ? `<p class="empty">No favorites yet. Tap the ♡ on any photo or video.</p>` : cat === "all" ? `<p class="empty">Nothing here yet. Tap + to add photos and videos.</p>` : `<p class="empty">No ${what} yet. Tap + to add some.</p>`);
-  Object.keys(ms).sort((a, b) => b - a).forEach(y => {
-    h += `<h3 class="yr" id="y-${y}">${yi(+y)} ${y}</h3>`;
-    [...ms[y]].sort((a, b) => b - a).forEach(m => {
-      const list = by[y + "-" + m] || [];
-      h += `<h2 id="m-${y}-${m}">${mi(+y, m)} ${mlong(+y, m)}${list.length ? `<small>${list.length}</small>` : ""}</h2>`;
-      if (!list.length) h += `<p class="none">No ${what} yet</p>`;
-      else if (sortMode === "moments") {
-        const days = {};
-        [...list].sort((a,b) => items[a].date - items[b].date).forEach(i => { const d = new Date(items[i].date), k = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`; (days[k] = days[k] || []).push(i); });
-        Object.keys(days).sort((a,b) => new Date(a)-new Date(b)).forEach(k => {
-          const d = new Date(k), label = d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});
-          h += `<div class="momentHead">${label}<small>${days[k].length}</small></div><div class="grid">${days[k].map(tile).join("")}</div>`;
-        });
-      } else h += `<div class="grid">${list.map(tile).join("")}</div>`;
-    });
-  });
-  $("g").innerHTML = h;
-  timeline(); spy();
+  $("n").textContent=all.length+(all.length===1?" memory":" memories");
+  const {ms}=calendar(),what=cat==="video"?"videos":cat==="fav"?"favorites":cat==="all"?"memories":cat==="other"?"other memories":"photos",by={},other=[];
+  items.forEach((it,i)=>{if(it.timeline==="other") other.push(i); else {const d=new Date(it.date),k=d.getFullYear()+"-"+d.getMonth();(by[k]=by[k]||[]).push(i);}});
+  let h=items.length?"":(cat==="fav"?`<p class="empty">No favorites yet. Tap the ♡ on any photo or video.</p>`:cat==="all"?`<p class="empty">Nothing here yet. Tap + to add photos and videos.</p>`:`<p class="empty">No ${what} yet. Tap + to add some.</p>`);
+  Object.keys(ms).sort((a,b)=>b-a).forEach(y=>{const yearItems=all.filter(i=>i.timeline!=="other" && new Date(i.date).getFullYear()===+y);h+=`<h3 class="yr" id="y-${y}">${yi(+y)} ${y} <small>${countLabel(yearItems)}</small></h3>`;[...ms[y]].sort((a,b)=>b-a).forEach(m=>{const list=by[y+"-"+m]||[],label=countLabel(list.map(i=>items[i]));h+=`<h2 id="m-${y}-${m}">${mi(+y,m)} ${mlong(+y,m)}${label?` <small>${label}</small>`:""}</h2>`;if(!list.length)h+=`<p class="none">No ${what} yet</p>`;else if(sortMode==="moments"){const days={};[...list].sort((a,b)=>items[a].date-items[b].date).forEach(i=>{const d=new Date(items[i].date),k=`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;(days[k]=days[k]||[]).push(i);});Object.keys(days).sort((a,b)=>new Date(a)-new Date(b)).forEach(k=>{const d=new Date(k),label=d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});h+=`<div class="momentHead">${label}<small>${countLabel(days[k].map(i=>items[i]))}</small></div><div class="grid">${days[k].map(tile).join("")}</div>`;});}else h+=`<div class="grid">${list.map(tile).join("")}</div>`;});});
+  if(other.length){const oi=other.map(i=>items[i]);h+=`<h3 class="otherHead" id="other-section">📦 Others <small>${countLabel(oi)}</small></h3><div class="grid">${other.map(tile).join("")}</div>`;}
+  $("g").innerHTML=h;timeline();spy();
 }
 
 function timeline() {
@@ -289,7 +275,7 @@ function timeline() {
   const years = Object.keys(ys).sort((a, b) => b - a);
   if (!years.length) { $("tl").innerHTML = ""; return; }
   if (!ys[selY]) selY = +years[0];
-  const n = y => Object.values(ys[y] || {}).reduce((a, b) => a + b, 0);
+  const n = y => countLabel(all.filter(i => i.timeline !== "other" && new Date(i.date).getFullYear() === +y));
   const months = Array.from({ length: 12 }, (_, m) => m);
   $("tl").innerHTML = `<div class="chips">${years.map(y => `<button class="chip ${y == selY ? "on" : ""}" data-y="${y}">${yi(+y)} ${y}${n(y) ? ` <small>${n(y)}</small>` : ""}</button>`).join("")}</div>` +
     `<div class="chips mo">${months.map(m => `<button class="chip ${currentMonth === m ? "on" : ""} ${ys[selY]?.[m] ? "" : "empty"}" data-m="${selY}-${m}">${mi(selY, m)} ${mname(selY, m)}</button>`).join("")}</div>`;
@@ -349,7 +335,7 @@ function show(i) {
   const it = items[idx];
   if (it.type === "video" && !it.url.startsWith("data:")) {
     const poster = it.thumb ? ` poster="${it.thumb}"` : "";
-    $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
+    $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata"></video>`;
     const v = $("m").querySelector("video");
     let repairing = false;
     const repairIfNeeded = async () => {
@@ -366,7 +352,8 @@ function show(i) {
       }
     };
     v.addEventListener("error", repairIfNeeded, { once: true });
-    v.addEventListener("loadedmetadata", () => { if (!v.videoWidth || !v.videoHeight) setTimeout(repairIfNeeded, 700); }, { once: true });
+    v.addEventListener("loadedmetadata", () => { if (!v.videoWidth || !v.videoHeight) setTimeout(repairIfNeeded, 500); }, { once: true });
+    setTimeout(() => { if (!repairing && (!v.videoWidth || !v.videoHeight)) repairIfNeeded(); }, 1200);
   } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
   $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   $("v").hidden = false;
@@ -440,8 +427,8 @@ $("shC").onclick = () => { $("sheet").hidden = true; pending = []; };
 $("shU").onclick = () => {
   $("sheet").hidden = true;
   if (!serverMode()) { toast("Preview mode: uploads work inside Telegram"); pending = []; return; }
-  const pick = document.querySelector("input[name=dm]:checked").value === "pick";
-  upload(pending, pick ? { y: +$("ySel").value, m: +$("mSel").value } : null); pending = [];
+  const mode = document.querySelector("input[name=dm]:checked").value;
+  upload(pending, mode === "pick" ? { y: +$("ySel").value, m: +$("mSel").value } : mode === "other" ? { other: true } : null); pending = [];
 };
 const guessType = n => ({ jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", webp: "image/webp", gif: "image/gif", heic: "image/heic", heif: "image/heif",
   mp4: "video/mp4", mov: "video/quicktime", m4v: "video/x-m4v", webm: "video/webm", "3gp": "video/3gpp", mkv: "video/x-matroska", avi: "video/x-msvideo" })[(n.split(".").pop() || "").toLowerCase()] || "";
@@ -555,7 +542,7 @@ async function upload(files, when) {
       // Video thumbnails are generated from the browser-compatible copy so even HEVC/10-bit sources get a real poster frame.
       const isVideo = type.startsWith("video/");
       const th = isVideo ? null : await makeThumb(f);
-      const r = await api("upload", { name: f.name, type, size: f.size, lastModified: when ? shift(f.lastModified, when) : f.lastModified, thumb: isVideo || !!th });
+      const r = await api("upload", { name: f.name, type, size: f.size, lastModified: when && !when.other ? shift(f.lastModified, when) : f.lastModified, thumb: isVideo || !!th, other: !!(when && when.other) });
       await putX(r.url, f, type, n => { sent[i] = n; show(); });
       if (th && r.thumbUrl) { try { await put(r.thumbUrl, th, "image/jpeg"); } catch {} }
       if (isVideo && r.compatibleUrl) {
@@ -576,7 +563,7 @@ async function upload(files, when) {
   await Promise.all(Array.from({ length: Math.min(3, files.length) }, worker));
   if (tg && tg.disableClosingConfirmation) tg.disableClosingConfirmation();
   busy = false;
-  if (cat === "all") {} else if (files.every(f => kind(f).startsWith("video"))) cat = "video"; else if (files.every(f => kind(f).startsWith("image"))) cat = "image";
+  if (cat === "all" || cat === "other") {} else if (files.every(f => kind(f).startsWith("video"))) cat = "video"; else if (files.every(f => kind(f).startsWith("image"))) cat = "image";
   const st = $("st"); st.textContent = "";
   if (failed.length) {
     st.textContent = `Couldn't upload ${failed.length} of ${files.length}. ${await why(errs[0])} `;
@@ -707,7 +694,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) hidde
 const favIcon = () => { const on = favs.has(items[idx].key); $("fv").textContent = on ? "♥" : "♡"; $("fv").classList.toggle("on", on); };
 const favLabel = () => {
   const n = all.filter(i => favs.has(i.key)).length;
-  $("favBtn").textContent = "♥ Favorite" + (n ? ` (${n})` : ""); $("favBtn").classList.toggle("on", cat === "fav");
+  $("favBtn").textContent = "♥ Favorite" + (n ? ` (${n})` : ""); $("favBtn").classList.toggle("on", cat === "fav"); $("otherBtn").textContent = "Others" + (all.filter(i => i.timeline === "other").length ? ` (${all.filter(i => i.timeline === "other").length})` : ""); $("otherBtn").classList.toggle("on", cat === "other");
 };
 function paintFavs() {
   if (cat === "fav" && $("v").hidden) return apply(); // an un-hearted item leaves the Favorite list
@@ -733,6 +720,7 @@ $("selFav").onclick = async () => {
   await setFav(keys, on); setSel(false); toast(on ? "Added to Favorites" : "Removed from Favorites");
 };
 
+$("otherBtn").onclick = () => { cat = cat === "other" ? lastCat : "other"; apply(); scrollTo(0, 0); };
 $("searchBtn").onclick=toggleSearch;
 $("searchClear").onclick=()=>{ $("searchInput").value=""; query=""; apply(); $("searchInput").focus(); };
 $("searchInput").addEventListener("input",e=>{query=e.target.value.trim(); apply();});

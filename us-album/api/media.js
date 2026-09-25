@@ -156,11 +156,11 @@ module.exports = async (req, res) => {
       const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
       const mediaObjects = all.filter((o) => typeof o.Key === "string" && o.Key.startsWith("media/") && o.Key.length > 6);
       const itemResults = await each(mediaObjects, async (o) => {
-        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatible = `compatible/${base}.mp4`;
+        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatibleV2 = `compatible-v2/${base}.mp4`, compatible = `compatible/${base}.mp4`;
         const type = kindOf(base);
         // Prefer a browser-friendly H.264/AAC MP4 when a compatible copy has been created.
-        const playKey = type === "video" && have.has(compatible) ? compatible : o.Key;
-        return { key: o.Key, size: Number(o.Size) || 0, date: Number(base.split("-")[0]) || 0, type, url: await sign(playKey), sourceUrl: type === "video" ? await sign(o.Key) : null, thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key };
+        const playKey = type === "video" && (have.has(compatibleV2) || have.has(compatible)) ? (have.has(compatibleV2) ? compatibleV2 : compatible) : o.Key;
+        return { key: o.Key, size: Number(o.Size) || 0, date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0, type, url: await sign(playKey), sourceUrl: type === "video" ? await sign(o.Key) : null, thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key, timeline: base.startsWith("other-") ? "other" : "date" };
       }, 8);
       const items = itemResults.filter(Boolean);
       items.sort((x, y) => y.date - x.date);
@@ -191,7 +191,7 @@ module.exports = async (req, res) => {
       if (!/^media\/[\w.-]+$/.test(key) || !/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(key.slice(6))) return res.status(400).json({ error: "bad key" });
       const base = key.slice(6);
       // The client converts the original bytes to H.264/AAC in WASM, then uploads this copy.
-      const uploadKey = `compatible/${base}.mp4`;
+      const uploadKey = `compatible-v2/${base}.mp4`;
       const thumbKey = `thumbs/${base}.jpg`;
       return res.json({ uploadUrl: await put(uploadKey, "video/mp4"), playUrl: await sign(uploadKey), thumbUrl: await put(thumbKey, "image/jpeg"), key: uploadKey });
     }
@@ -200,12 +200,12 @@ module.exports = async (req, res) => {
       const type = String(b.type || "");
       if (!/^(image|video)\//.test(type) || !(b.size > 0 && b.size <= 2e9)) return res.status(400).json({ error: "bad file" });
       const name = String(b.name || "file").replace(/[^\w.-]+/g, "_").slice(-60);
-      const base = `${Number(b.lastModified) || Date.now()}-${crypto.randomBytes(4).toString("hex")}-${name}`;
+      const base = `${b.other ? "other-" : ""}${Number(b.lastModified) || Date.now()}-${crypto.randomBytes(4).toString("hex")}-${name}`;
       return res.json({
         key: `media/${base}`,
         url: await put(`media/${base}`, type),
         thumbUrl: b.thumb ? await put(`thumbs/${base}.jpg`, "image/jpeg") : null,
-        compatibleUrl: /^video\//.test(type) ? await put(`compatible/${base}.mp4`, "video/mp4") : null,
+        compatibleUrl: /^video\//.test(type) ? await put(`compatible-v2/${base}.mp4`, "video/mp4") : null,
       });
     }
 

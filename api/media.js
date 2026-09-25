@@ -160,7 +160,7 @@ module.exports = async (req, res) => {
         const type = kindOf(base);
         // Prefer a browser-friendly H.264/AAC MP4 when a compatible copy has been created.
         const playKey = type === "video" && have.has(compatible) ? compatible : o.Key;
-        return { key: o.Key, size: Number(o.Size) || 0, date: Number(base.split("-")[0]) || 0, type, url: await sign(playKey), sourceUrl: type === "video" ? await sign(o.Key) : null, thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key };
+        return { key: o.Key, size: Number(o.Size) || 0, date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0, type, url: await sign(playKey), sourceUrl: type === "video" ? await sign(o.Key) : null, thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key, timeline: base.startsWith("other-") ? "other" : "date" };
       }, 8);
       const items = itemResults.filter(Boolean);
       items.sort((x, y) => y.date - x.date);
@@ -205,7 +205,7 @@ module.exports = async (req, res) => {
         key: `media/${base}`,
         url: await put(`media/${base}`, type),
         thumbUrl: b.thumb ? await put(`thumbs/${base}.jpg`, "image/jpeg") : null,
-        compatibleUrl: /^video\//.test(type) ? await put(`compatible/${base}.mp4`, "video/mp4") : null,
+        compatibleUrl: /^video\//.test(type) ? await put(`compatible-v2/${base}.mp4`, "video/mp4") : null,
       });
     }
 
