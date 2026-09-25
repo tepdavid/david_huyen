@@ -160,7 +160,7 @@ module.exports = async (req, res) => {
         tok = r.NextContinuationToken;
       } while (tok);
 
-      const kindOf = (base) => (/\\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
+      const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
       const itemResults = await each(mediaObjects, async (o) => {
         const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatibleV2 = `compatible-v2/${base}.mp4`, compatibleV1 = `compatible/${base}.mp4`;
         const type = kindOf(base);
