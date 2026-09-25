@@ -263,7 +263,6 @@ function calendar() {
 const countLabel=list=>{const p=list.filter(i=>i.type==="image").length,v=list.filter(i=>i.type==="video").length;return [p&&`(${p} ${p===1?"photo":"photos"})`,v&&`(${v} ${v===1?"video":"videos"})`].filter(Boolean).join(", ");};
 
 let renderLimit = 300;
-let renderLimit = 300;
 function draw() {
   $("n").textContent=all.length+(all.length===1?" memory":" memories");
   const {ms}=calendar(),what=cat==="video"?"videos":cat==="fav"?"favorites":cat==="all"?"memories":cat==="other"?"other memories":"photos";
