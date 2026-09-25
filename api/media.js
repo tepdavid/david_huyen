@@ -166,7 +166,8 @@ module.exports = async (req, res) => {
       if (staleBases.length) await dropFavs(staleBases).catch(() => {});
       trash.sort((x, y) => y.deletedAt - x.deletedAt);
       const favs = (await getFavs().catch(() => [])).filter((k) => have.has(k));
-      return res.json({ items, trash, favs });
+      const storageBytes = all.reduce((sum, o) => sum + Number(o.Size || 0), 0);
+      return res.json({ items, trash, favs, storageBytes });
     }
 
     if (req.query.action === "upload") {
@@ -178,6 +179,7 @@ module.exports = async (req, res) => {
         key: `media/${base}`,
         url: await put(`media/${base}`, type),
         thumbUrl: b.thumb ? await put(`thumbs/${base}.jpg`, "image/jpeg") : null,
+        compatibleUrl: /^video\//.test(type) ? await put(`compatible/${base}.mp4`, "video/mp4") : null,
       });
     }
 
@@ -190,7 +192,10 @@ module.exports = async (req, res) => {
       if (!/^media\/[\w.-]+$/.test(key)) return res.status(400).json({ error: "bad key" });
       const base = key.slice(6);
       const type = /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image";
-      const contentType = type === "video" ? ({mp4:"video/mp4",mov:"video/quicktime",m4v:"video/x-m4v",webm:"video/webm",3gp:"video/3gpp",mkv:"video/x-matroska",avi:"video/x-msvideo",mpg:"video/mpeg",mpeg:"video/mpeg"}[(base.match(/\.([^.]+)$/)||[])[1]?.toLowerCase()] || "application/octet-stream") : ({jpg:"image/jpeg",jpeg:"image/jpeg",png:"image/png",webp:"image/webp",gif:"image/gif",heic:"image/heic",heif:"image/heif"}[(base.match(/\.([^.]+)$/)||[])[1]?.toLowerCase()] || "application/octet-stream");
+      const ext = ((base.match(/\.([^.]+)$/) || [])[1] || "").toLowerCase();
+      const videoTypes = { mp4:"video/mp4", mov:"video/quicktime", m4v:"video/x-m4v", webm:"video/webm", "3gp":"video/3gpp", mkv:"video/x-matroska", avi:"video/x-msvideo", mpg:"video/mpeg", mpeg:"video/mpeg" };
+      const imageTypes = { jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp", gif:"image/gif", heic:"image/heic", heif:"image/heif" };
+      const contentType = (type === "video" ? videoTypes[ext] : imageTypes[ext]) || "application/octet-stream";
       const safeName = base.replace(/[^\w.-]+/g, "_").slice(-120);
       const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket, Key: key, ResponseContentType: contentType, ResponseContentDisposition: `attachment; filename="${safeName}"` }), { expiresIn: 900 });
       return res.json({ url, name: safeName });

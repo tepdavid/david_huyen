@@ -86,37 +86,49 @@ module.exports = async (req, res) => {
   }
   if (req.method !== "POST") return res.status(405).end();
   const h = req.headers.authorization || "";
-  const v = h.startsWith("tma ") ? verify(h.slice(4)) : { reason: "no_initdata" };
-  if (!v.user) return res.status(401).json({ error: "unauthorized", reason: v.reason, age: v.age });
-  const user = v.user;
+  const isTelegram = h.startsWith("tma ");
+  const v = isTelegram ? verify(h.slice(4)) : null;
+  const user = v && v.user ? v.user : null;
+  const browserMode = !isTelegram;
   const allowed = (E.ALLOWED_USER_IDS || "").split(",").map((s) => s.trim().replace(/["']/g, "")).filter(Boolean);
-  if (!allowed.includes(String(user.id))) return res.status(403).json({ error: "private" });
+  if (isTelegram && !user) return res.status(401).json({ error: "unauthorized", reason: v.reason, age: v.age });
+  if (isTelegram && !allowed.includes(String(user.id))) return res.status(403).json({ error: "private" });
 
   const b = req.body || {};
-  const PIN = R("ALBUM_PIN"), pinOn = /^\d{4}$/.test(PIN); // no ALBUM_PIN set means no passcode screen
-  const mac = (exp) => crypto.createHmac("sha256", `${BOT}:${PIN}`).update(`${user.id}:${exp}`).digest("hex");
+  const PIN = R("ALBUM_PIN"), pinOn = /^\d{4}$/.test(PIN);
+  // Telegram sessions are tied to the Telegram account. Browser sessions use a separate subject.
+  const subject = browserMode ? "web" : String(user.id);
+  const mac = (exp, who = subject) => crypto.createHmac("sha256", `${BOT}:${PIN}`).update(`${who}:${exp}`).digest("hex");
+  const makeSession = (exp) => browserMode ? `web.${exp}.${mac(exp, "web")}` : `tg.${user.id}.${exp}.${mac(exp, String(user.id))}`;
   try {
     if (req.query.action === "unlock") {
-      if (!pinOn) return res.json({ session: "", ttl: 0 });
+      if (!pinOn) return browserMode ? res.status(400).json({ error: "browser_password_not_configured" }) : res.json({ session: "", ttl: 0 });
       const guess = String(b.pin || "");
       if (!/^\d{4}$/.test(guess)) return res.status(400).json({ error: "bad pin" });
       const now = Date.now(), st = await getState();
       if (st.lockedUntil > now) return res.status(429).json({ error: "locked_out", wait: Math.ceil((st.lockedUntil - now) / 1000) });
       if (crypto.timingSafeEqual(Buffer.from(guess), Buffer.from(PIN))) {
         if (st.fails) await putState({ fails: 0, lockedUntil: 0 }).catch(() => {});
-        const exp = now + 3600 * 1000; // a session lasts one hour
-        return res.json({ session: `${exp}.${mac(exp)}`, ttl: 3600 });
+        const exp = now + 3600 * 1000;
+        return res.json({ session: makeSession(exp), ttl: 3600, mode: browserMode ? "web" : "telegram" });
       }
       st.fails = (st.fails || 0) + 1;
-      const out = st.fails >= 5; // five wrong tries lock everything for 15 minutes
+      const out = st.fails >= 5;
       await putState(out ? { fails: 0, lockedUntil: now + 15 * 60 * 1000 } : st);
       return out ? res.status(429).json({ error: "locked_out", wait: 900 }) : res.status(401).json({ error: "wrong_pin", left: 5 - st.fails });
     }
-    if (pinOn) { // every other action needs a valid unlock session
-      const [exp, sig = ""] = String(req.headers["x-session"] || "").split(".");
-      const good = Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp)));
-      if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
-    }
+    // Telegram access can be authenticated by Telegram alone when no passcode is configured.
+    // Browser access always requires a valid one-hour web session.
+    const raw = String(req.headers["x-session"] || "");
+    let good = false;
+    if (browserMode) {
+      const [kind, exp, sig = ""] = raw.split(".");
+      good = kind === "web" && Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp, "web")));
+    } else if (pinOn) {
+      const [kind, id, exp, sig = ""] = raw.split(".");
+      good = kind === "tg" && id === String(user.id) && Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp, String(user.id))));
+    } else good = true;
+    if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
 
     if (req.query.action === "check") { // reports which settings are missing and whether storage is reachable
       const env = Object.fromEntries(["BOT_TOKEN", "ALLOWED_USER_IDS", "R2_ACCOUNT_ID", "R2_ACCESS_KEY_ID", "R2_SECRET_ACCESS_KEY", "R2_BUCKET"].map((k) => [k, !!E[k]]));
@@ -135,8 +147,11 @@ module.exports = async (req, res) => {
       const have = new Set(all.map((o) => o.Key));
       const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
       const items = await Promise.all(all.filter((o) => o.Key.startsWith("media/")).map(async (o) => {
-        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`;
-        return { key: o.Key, size: o.Size, date: Number(base.split("-")[0]) || 0, type: kindOf(base), url: await sign(o.Key), thumb: have.has(tk) ? await sign(tk) : null };
+        const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`, compatible = `compatible/${base}.mp4`;
+        const type = kindOf(base);
+        // Prefer a browser-friendly H.264/AAC MP4 when a compatible copy has been created.
+        const playKey = type === "video" && have.has(compatible) ? compatible : o.Key;
+        return { key: o.Key, size: o.Size, date: Number(base.split("-")[0]) || 0, type, url: await sign(playKey), thumb: have.has(tk) ? await sign(tk) : null, compatible: playKey !== o.Key };
       }));
       items.sort((x, y) => y.date - x.date);
       // Recently deleted lives under trash/<deletedAt>~<name>. Anything older than 30 days is erased here.
@@ -151,7 +166,8 @@ module.exports = async (req, res) => {
       if (staleBases.length) await dropFavs(staleBases).catch(() => {});
       trash.sort((x, y) => y.deletedAt - x.deletedAt);
       const favs = (await getFavs().catch(() => [])).filter((k) => have.has(k));
-      return res.json({ items, trash, favs });
+      const storageBytes = all.reduce((sum, o) => sum + Number(o.Size || 0), 0);
+      return res.json({ items, trash, favs, storageBytes });
     }
 
     if (req.query.action === "upload") {
@@ -163,12 +179,27 @@ module.exports = async (req, res) => {
         key: `media/${base}`,
         url: await put(`media/${base}`, type),
         thumbUrl: b.thumb ? await put(`thumbs/${base}.jpg`, "image/jpeg") : null,
+        compatibleUrl: /^video\//.test(type) ? await put(`compatible/${base}.mp4`, "video/mp4") : null,
       });
     }
 
     const okMedia = (k) => /^media\/[\w.-]+$/.test(String(k));
     const okTrash = (k) => /^trash\/\d+~[\w.-]+$/.test(String(k));
     const keysOf = (ok) => (Array.isArray(b.keys) ? b.keys : [b.key]).filter(ok).slice(0, 300);
+
+    if (req.query.action === "download") {
+      const key = String(b.key || "");
+      if (!/^media\/[\w.-]+$/.test(key)) return res.status(400).json({ error: "bad key" });
+      const base = key.slice(6);
+      const type = /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image";
+      const ext = ((base.match(/\.([^.]+)$/) || [])[1] || "").toLowerCase();
+      const videoTypes = { mp4:"video/mp4", mov:"video/quicktime", m4v:"video/x-m4v", webm:"video/webm", "3gp":"video/3gpp", mkv:"video/x-matroska", avi:"video/x-msvideo", mpg:"video/mpeg", mpeg:"video/mpeg" };
+      const imageTypes = { jpg:"image/jpeg", jpeg:"image/jpeg", png:"image/png", webp:"image/webp", gif:"image/gif", heic:"image/heic", heif:"image/heif" };
+      const contentType = (type === "video" ? videoTypes[ext] : imageTypes[ext]) || "application/octet-stream";
+      const safeName = base.replace(/[^\w.-]+/g, "_").slice(-120);
+      const url = await getSignedUrl(s3, new GetObjectCommand({ Bucket, Key: key, ResponseContentType: contentType, ResponseContentDisposition: `attachment; filename="${safeName}"` }), { expiresIn: 900 });
+      return res.json({ url, name: safeName });
+    }
 
     if (req.query.action === "favorite") { // b.on true adds hearts, false removes them
       const keys = keysOf(okMedia);

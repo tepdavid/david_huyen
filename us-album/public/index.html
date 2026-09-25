@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>David 💛 Huyền</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <style>
 :root{--sat:calc(max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px)) + var(--tg-content-safe-area-inset-top,0px));--bg:#f6efeb;--card:#fff;--ink:#2a1c28;--mute:#65546a;--acc:#b23a5b;--on:#fff;--b1:#ffb3c7;--b2:#b9d4ff;--b3:#ffd9a8;--glass:rgba(255,255,255,.45);--edge:rgba(255,255,255,.75);
 box-sizing:border-box;padding-top:var(--sat);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -29,7 +30,7 @@ h2{font:600 14px Georgia,serif;color:var(--mute);padding:18px 18px 8px}
 .v{position:fixed;inset:0;background:#000;z-index:10;display:flex;flex-direction:column;justify-content:center;color:#fff}
 .v[hidden],#toast[hidden]{display:none}
 #m{flex:1;display:grid;place-items:center;min-height:0}
-#m img,#m video{max-width:100%;max-height:100%}
+#m img,#m video{width:100%;height:100%;max-width:100%;max-height:100%;object-fit:contain;background:#000}
 .bar{position:absolute;top:calc(10px + var(--sat));left:0;right:0;display:flex;justify-content:space-between;padding:0 12px}
 .bar button,.nav{width:42px;height:42px;border-radius:50%;background:#0009;font-size:18px;color:#fff}
 .nav{position:absolute;top:50%}#pv{left:8px}#nx{right:8px}
@@ -39,12 +40,15 @@ h2{font:600 14px Georgia,serif;color:var(--mute);padding:18px 18px 8px}
 .seg button{flex:1;padding:8px;border-radius:999px;font-size:14px;color:var(--mute)}
 .seg .on{background:var(--acc);color:var(--on)}
 .seg small{opacity:.8;margin-left:4px}
-.chips{display:flex;gap:8px;overflow-x:auto;padding:3px 0;scrollbar-width:none}
-.chip{flex:none;padding:6px 14px;border-radius:999px;background:var(--card);font-size:13px;color:var(--mute)}
+.chips{display:flex;gap:8px;overflow-x:auto;padding:4px 0;scrollbar-width:none}
+.chips::-webkit-scrollbar{display:none}
+.chip{flex:none;min-height:42px;padding:7px 16px;border-radius:999px;background:var(--card);font-size:15px;color:var(--mute);white-space:nowrap}
 .chip.on{background:var(--acc);color:var(--on)}
 .chip small{opacity:.75;margin-left:5px}
+.chips.mo{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:7px;overflow:visible}
+.chips.mo .chip{min-width:0;padding:7px 4px;font-size:13px;text-align:center}
 .yr{font:italic 700 28px Georgia,serif;color:var(--acc);padding:20px 18px 0}
-h2[id],.yr{scroll-margin-top:calc(255px + var(--sat))}
+h2[id],.yr{scroll-margin-top:calc(270px + var(--sat))}
 /* Liquid glass */
 .bg{position:fixed;inset:0;z-index:-1;overflow:hidden;background:var(--bg)}
 .bg i{position:absolute;width:62vmax;height:62vmax;border-radius:50%;filter:blur(70px);opacity:.8;animation:drift 24s ease-in-out infinite alternate}
@@ -64,8 +68,6 @@ h2[id],.yr{scroll-margin-top:calc(255px + var(--sat))}
 .v{background:rgba(0,0,0,.82);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
 .bar button,.nav{background:rgba(255,255,255,.16);border:1px solid rgba(255,255,255,.28)}
 .chip.empty{opacity:.5}
-.chips.mo{display:grid;grid-template-columns:repeat(6,1fr);gap:5px;overflow:visible}
-.chips.mo .chip{padding:5px 0;font-size:12px;text-align:center}
 .none{color:var(--mute);font-size:13px;padding:2px 18px 6px}
 h2 small{margin-left:8px;font:12px system-ui,sans-serif;opacity:.75}
 .sheet{position:fixed;inset:0;z-index:30;background:rgba(0,0,0,.4);-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px);display:flex;align-items:flex-end;justify-content:center}
@@ -82,7 +84,7 @@ select{flex:1;font:inherit;color:var(--ink);background:var(--glass);border:1px s
 header{flex-direction:column;align-items:center;text-align:center;gap:2px;padding:24px 18px 10px}
 h1{font-size:32px}
 #sub{font:italic 16px Georgia,"Times New Roman",serif;color:var(--mute)}
-#n{font-size:12px;margin-top:4px}
+#n{font-size:12px;margin-top:4px}#storage{font-size:12px;color:var(--mute);margin-top:2px}
 .tools{display:flex;gap:6px;margin-top:8px}
 .tools button{padding:7px 14px;border-radius:999px;font-size:13px;background:var(--glass);border:1px solid var(--edge);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
 #selbar,.trbar{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:26;display:flex;gap:8px;align-items:center;padding:10px;border-radius:22px;background:color-mix(in srgb,var(--card) 84%,transparent);border:1px solid var(--edge);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%)}
@@ -127,18 +129,18 @@ h1{font-size:32px}
 .hv{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;font-style:normal;font-size:15px;line-height:26px;text-align:center;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .hv::after{content:"";position:absolute;inset:-8px}
 .hv.on{background:rgba(255,255,255,.88);color:#ff4d75}
-</style>
+.vfail{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;width:100%;height:100%;color:#fff;text-align:center;padding:24px;box-sizing:border-box}.vfail img{width:auto!important;height:auto!important;max-width:80%;max-height:55%;border-radius:16px}.vfail p{margin:0;font-weight:700}.vfail small{max-width:420px;opacity:.72;line-height:1.4}</style>
 </head>
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
-<header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span></header>
+<header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span><span id="storage"></span></header>
 <div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="trBtn">Recently deleted</button></div></div>
 <div id="st"></div>
 <main id="g"></main>
 <label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
 <div class="lock" id="out" hidden>
-  <div class="lk"><div class="lkT">Open in Telegram 💛</div>
-    <p class="note" style="margin-bottom:18px">This album only opens inside Telegram, where it asks for your passcode. A web browser can't show it.</p>
+  <div class="lk"><div class="lkT">Our Memories 💛</div>
+    <p class="note" style="margin-bottom:18px">Open your private memories with the passcode. You can use Telegram or any web browser.</p>
     <a id="outBtn" class="outBtn" hidden>Open in Telegram</a></div>
 </div>
 <div class="lock" id="lock" hidden>
@@ -146,7 +148,7 @@ h1{font-size:32px}
     <div class="dots" id="dots"><i></i><i></i><i></i><i></i></div><div class="pad" id="pad"></div></div>
 </div>
 <div id="toast" hidden></div>
-<div id="selbar" hidden><span id="selN"></span><button id="selFav" aria-label="Favorite">♥</button><button id="selDel" class="danger">Delete</button><button id="selX">Cancel</button></div>
+<div id="selbar" hidden><span id="selN"></span><button id="selDl" aria-label="Download selected">⇩ Save</button><button id="selFav" aria-label="Favorite">♥</button><button id="selDel" class="danger">Delete</button><button id="selX">Cancel</button></div>
 <div class="tr" id="tr" hidden>
   <div class="trh"><button id="trX" aria-label="Close">✕</button><h3>Recently deleted</h3><button id="trAll">Select all</button></div>
   <p class="note" id="trNote" style="padding:0 16px"></p>
@@ -162,7 +164,7 @@ h1{font-size:32px}
   <div class="acts"><button id="shC">Cancel</button><button id="shU" class="go">Upload</button></div>
 </div></div>
 <div class="v" id="v" hidden>
-  <div class="bar"><button id="x" aria-label="Close">✕</button><span class="rt"><button id="fv" aria-label="Favorite">♡</button><button id="del" aria-label="Delete">🗑</button></span></div>
+  <div class="bar"><button id="x" aria-label="Close">✕</button><span class="rt"><button id="dl" aria-label="Download" title="Save to device">⇩</button><button id="fv" aria-label="Favorite">♡</button><button id="del" aria-label="Delete">🗑</button></span></div>
   <div id="m"></div><button class="nav" id="pv" aria-label="Previous">‹</button><button class="nav" id="nx" aria-label="Next">›</button><p id="cap"></p>
 </div>
 <script>
@@ -178,11 +180,15 @@ if (tg) {
 }
 const $ = id => document.getElementById(id);
 const live = () => tg && tg.initData;
+const serverMode = () => live() || !PREVIEW;
+const browser = () => !live();
 let all = [], items = [], idx = 0, tt, cat = "image", lastCat = "image", session = "", favs = new Set();
 $("t").textContent = TITLE; $("sub").textContent = SUBTITLE;
 
 const api = async (action, body) => {
-  const r = await fetch("/api/media?action=" + action, { method: "POST", headers: { "Content-Type": "application/json", Authorization: "tma " + tg.initData, "x-session": session }, body: JSON.stringify(body || {}) });
+  const headers = { "Content-Type": "application/json", "x-session": session };
+  if (live()) headers.Authorization = "tma " + tg.initData;
+  const r = await fetch("/api/media?action=" + action, { method: "POST", headers, body: JSON.stringify(body || {}) });
   if (!r.ok) {
     let j = {}; try { j = await r.json(); } catch {}
     if (r.status === 401 && j.reason === "locked") { session = ""; showLock(); throw new Error("locked"); }
@@ -198,6 +204,8 @@ const put = async (u, b, t) => {
 };
 const toast = m => { const e = $("toast"); e.textContent = m; e.hidden = false; clearTimeout(tt); tt = setTimeout(() => e.hidden = true, 2500); };
 const fmt = (d, o) => new Date(d).toLocaleDateString(undefined, o);
+const formatBytes = n => { if (!n) return "0 B"; const u=["B","KB","MB","GB","TB"]; let i=0,v=n; while(v>=1024&&i<u.length-1){v/=1024;i++;} return `${v>=100?Math.round(v):v>=10?v.toFixed(1):v.toFixed(2)} ${u[i]}`; };
+const updateStorage = n => { $("storage").textContent = n ? `${formatBytes(n)} used` : ""; };
 
 const demo = () => Array.from({ length: 12 }, (_, i) => {
   const e = ["💛","🌅","🍜","🌊","🎬","🌸"][i % 6], c = ["#e5789a","#f0a35e","#7cb7a3","#6f9ad4","#a487c9","#d97a7a"][i % 6];
@@ -226,6 +234,7 @@ const tile = i => {
 
 // Timeline: every month of every year is shown, whether or not it has memories yet
 let selY = null;
+let currentMonth = null;
 const RANGE = { from: [2022, 7], to: [2026, 7] }; // August 2022 to August 2026 (months are 0-based)
 // Flower and scenery icons, assigned by a fixed formula so each month and year always keeps the same one
 const ICONS = ["🌸","🌷","🌼","🌻","🌹","🌺","💐","🏞️","🌅","🌄","🌊","🏔️","🌈","🍁","🌾","🌴"];
@@ -261,14 +270,14 @@ function draw() {
 }
 
 function timeline() {
-  const { ys, ms } = calendar();
-  const years = Object.keys(ms).sort((a, b) => b - a);
+  const { ys } = calendar();
+  const years = Object.keys(ys).sort((a, b) => b - a);
   if (!years.length) { $("tl").innerHTML = ""; return; }
-  if (!ms[selY]) selY = +years[0];
-  const months = [...ms[selY]].sort((a, b) => a - b); // January to December
+  if (!ys[selY]) selY = +years[0];
   const n = y => Object.values(ys[y] || {}).reduce((a, b) => a + b, 0);
-  $("tl").innerHTML = `<div class="chips">${years.map(y => `<button class="chip ${y == selY ? "on" : ""} ${n(y) ? "" : "empty"}" data-y="${y}">${yi(+y)} ${y}</button>`).join("")}</div>` +
-    `<div class="chips mo">${months.map(m => `<button class="chip ${(ys[selY] || {})[m] ? "" : "empty"}" data-m="${selY}-${m}">${mi(selY, m)} ${mname(selY, m)}</button>`).join("")}</div>`;
+  const months = Array.from({ length: 12 }, (_, m) => m);
+  $("tl").innerHTML = `<div class="chips">${years.map(y => `<button class="chip ${y == selY ? "on" : ""}" data-y="${y}">${yi(+y)} ${y}${n(y) ? ` <small>${n(y)}</small>` : ""}</button>`).join("")}</div>` +
+    `<div class="chips mo">${months.map(m => `<button class="chip ${currentMonth === m ? "on" : ""} ${ys[selY]?.[m] ? "" : "empty"}" data-m="${selY}-${m}">${mi(selY, m)} ${mname(selY, m)}</button>`).join("")}</div>`;
 }
 const satPx = () => parseFloat(getComputedStyle($("top")).top) || 0; // how far the pinned bar sits below the top edge
 function spy() {
@@ -278,25 +287,48 @@ function spy() {
   if (!c) return;
   const [, y, m] = c.id.split("-");
   if (+y !== selY) { selY = +y; timeline(); }
+  currentMonth = +m;
   document.querySelectorAll("[data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === y + "-" + m));
 }
 addEventListener("scroll", spy, { passive: true });
 $("tl").onclick = e => {
   const b = e.target.closest(".chip"); if (!b) return;
   const what = cat === "video" ? "videos" : "photos";
-  if (b.dataset.y) { selY = +b.dataset.y; timeline(); const t = document.getElementById("y-" + selY); if (t) t.scrollIntoView({ behavior: "smooth" }); else toast(`No ${what} in ${selY} yet`); }
-  else if (b.dataset.m) { const [y, m] = b.dataset.m.split("-"); const t = document.getElementById("m-" + b.dataset.m); if (t) t.scrollIntoView({ behavior: "smooth" }); else toast(`No ${what} in ${mname(+y, +m, true)} yet`); }
+  if (b.dataset.y) {
+    selY = +b.dataset.y;
+    const first = Object.keys(calendar().ys[selY] || {}).map(Number).sort((a, b) => a - b)[0];
+    currentMonth = first ?? null;
+    timeline();
+    const t = document.getElementById("y-" + selY);
+    if (t) t.scrollIntoView({ behavior: "smooth" });
+  }
+  else if (b.dataset.m) {
+    const [y, m] = b.dataset.m.split("-").map(Number);
+    selY = y; currentMonth = m; timeline();
+    const t = document.getElementById("m-" + b.dataset.m);
+    if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
+    else toast(`No ${what} in ${mname(y, m, true)} yet`);
+  }
 };
 async function load() {
-  if (!live()) { if (!PREVIEW) { showOutside(); return; } all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode. Open the app inside Telegram to see your real album."; return; }
-  try { const r = await api("list"); all = r.items; trashItems = r.trash || []; favs = new Set(r.favs || []); apply(); }
+  if (!live() && PREVIEW) { all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode."; return; }
+  try { const r = await api("list"); all = r.items; trashItems = r.trash || []; favs = new Set(r.favs || []); updateStorage(r.storageBytes || 0); apply(); }
   catch (e) { if (e.message === "locked") return; $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
 }
 
 function show(i) {
   idx = (i + items.length) % items.length;
   const it = items[idx];
-  $("m").innerHTML = it.type === "video" && !it.url.startsWith("data:") ? `<video src="${it.url}" controls playsinline autoplay></video>` : `<img src="${it.url}" alt="">`;
+  if (it.type === "video" && !it.url.startsWith("data:")) {
+    const poster = it.thumb ? ` poster="${it.thumb}"` : "";
+    $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
+    const v = $("m").querySelector("video");
+    v.addEventListener("error", () => {
+      if (it.thumb) {
+        $("m").innerHTML = `<div class="vfail"><img src="${it.thumb}" alt=""><p>This video needs a compatible format for this browser.</p><small>Keep the original memory; a browser-friendly copy can be created with the included video converter.</small></div>`;
+      }
+    }, { once: true });
+  } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
   $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   $("v").hidden = false;
   favIcon();
@@ -323,6 +355,8 @@ $("g").onclick = e => {
 $("x").onclick = close;
 $("pv").onclick = () => show(idx - 1);
 $("nx").onclick = () => show(idx + 1);
+$("dl").onclick = () => { const it = items[idx]; if (it) downloadOne(it.key, it.key.replace(/^media\//, "")); };
+$("selDl").onclick = () => downloadSelected([...sel]);
 document.onkeydown = e => { if ($("v").hidden) return; if (e.key === "Escape") close(); if (e.key === "ArrowLeft") show(idx - 1); if (e.key === "ArrowRight") show(idx + 1); };
 let sx = 0;
 $("m").ontouchstart = e => sx = e.touches[0].clientX;
@@ -366,7 +400,7 @@ $("mSel").onchange = $("ySel").onchange = () => { document.querySelector('input[
 $("shC").onclick = () => { $("sheet").hidden = true; pending = []; };
 $("shU").onclick = () => {
   $("sheet").hidden = true;
-  if (!live()) { toast("Preview mode: uploads work inside Telegram"); pending = []; return; }
+  if (!serverMode()) { toast("Preview mode: uploads work inside Telegram"); pending = []; return; }
   const pick = document.querySelector("input[name=dm]:checked").value === "pick";
   upload(pending, pick ? { y: +$("ySel").value, m: +$("mSel").value } : null); pending = [];
 };
@@ -409,6 +443,31 @@ const putX = (u, b, t, on) => new Promise((res, rej) => { // upload with byte-by
   x.onerror = () => rej(new Error("Storage blocked the upload. Add this exact address to the R2 bucket's CORS rule (AllowedOrigins): " + location.origin));
   x.send(b);
 });
+let ffmpegInstance = null, ffmpegLoading = null;
+async function getFFmpeg() {
+  if (ffmpegInstance) return ffmpegInstance;
+  if (ffmpegLoading) return ffmpegLoading;
+  if (!window.FFmpeg) throw new Error("Video converter unavailable");
+  ffmpegLoading = (async () => {
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const f = createFFmpeg({ log: false, corePath: "https://unpkg.com/@ffmpeg/core@0.11.6/dist/ffmpeg-core.js" });
+    await f.load();
+    f.__fetchFile = fetchFile;
+    ffmpegInstance = f;
+    return f;
+  })();
+  try { return await ffmpegLoading; } finally { ffmpegLoading = null; }
+}
+async function makeCompatibleVideo(file, progress) {
+  const ff = await getFFmpeg(), input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${(file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "")}`, output = input + ".mp4";
+  ff.FS("writeFile", input, await ff.__fetchFile(file));
+  try {
+    await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k", output);
+    const data = ff.FS("readFile", output);
+    progress && progress(1);
+    return new Blob([data.buffer], { type: "video/mp4" });
+  } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
+}
 let busy = false;
 async function upload(files, when) {
   busy = true; if (tg && tg.enableClosingConfirmation) tg.enableClosingConfirmation();
@@ -423,6 +482,13 @@ async function upload(files, when) {
       const r = await api("upload", { name: f.name, type, size: f.size, lastModified: when ? shift(f.lastModified, when) : f.lastModified, thumb: !!th });
       await putX(r.url, f, type, n => { sent[i] = n; show(); });
       if (th && r.thumbUrl) { try { await put(r.thumbUrl, th, "image/jpeg"); } catch {} }
+      if (type.startsWith("video/") && r.compatibleUrl) {
+        try {
+          show();
+          const compatible = await makeCompatibleVideo(f, p => { sent[i] = Math.max(sent[i], f.size + Math.round(f.size * p)); show(); });
+          if (compatible) await putX(r.compatibleUrl, compatible, "video/mp4");
+        } catch (e) { console.warn("Compatible video copy failed", e); }
+      }
     } catch (e) { errs.push(e); failed.push(f); }
     sent[i] = files[i].size; done++; show();
   };
@@ -445,14 +511,31 @@ async function upload(files, when) {
 let selecting = false, trashItems = [];
 const sel = new Set(), tsel = new Set();
 const ask = msg => new Promise(res => (tg && tg.isVersionAtLeast && tg.isVersionAtLeast("6.2") && tg.showConfirm) ? tg.showConfirm(msg, res) : res(confirm(msg)));
+async function downloadOne(key, name) {
+  try {
+    const r = await api("download", { key });
+    const a = document.createElement("a"); a.href = r.url; a.download = name || "memory"; a.target = "_blank"; a.rel = "noopener";
+    document.body.appendChild(a); a.click(); a.remove();
+    toast("Download started");
+  } catch { toast("Couldn't download this memory. Try again."); }
+}
+async function downloadSelected(keys) {
+  if (!keys.length) return toast("Select photos or videos first");
+  let started = 0;
+  for (const key of keys) {
+    try { const r = await api("download", { key }); const a = document.createElement("a"); a.href = r.url; a.download = r.name || "memory"; a.target = "_blank"; a.rel = "noopener"; document.body.appendChild(a); a.click(); a.remove(); started++; await new Promise(x => setTimeout(x, 180)); } catch {}
+  }
+  toast(started === keys.length ? `Saving ${started} memories` : `Started ${started} of ${keys.length} downloads`);
+}
+
 async function act(action, keys) {
-  if (live()) return api(action, { keys });
+  if (serverMode()) return api(action, { keys });
   const ks = new Set(keys); // preview mode: everything stays in memory
   if (action === "delete") { const gone = all.filter(i => ks.has(i.key)); all = all.filter(i => !ks.has(i.key)); trashItems.push(...gone.map(i => ({ ...i, deletedAt: Date.now() }))); }
   else if (action === "restore") { all.push(...trashItems.filter(i => ks.has(i.key))); trashItems = trashItems.filter(i => !ks.has(i.key)); all.sort((a, b) => b.date - a.date); }
   else if (action === "erase") trashItems = trashItems.filter(i => !ks.has(i.key));
 }
-const refresh = async () => { if (live()) await load(); else apply(); };
+const refresh = async () => { if (serverMode()) await load(); else apply(); };
 const selCount = () => { $("selN").textContent = sel.size ? `${sel.size} selected` : "Tap photos to select"; };
 function setSel(on) {
   selecting = on; if (!on) sel.clear();
@@ -496,10 +579,16 @@ let pin = "", checking = false, hiddenAt = 0;
 $("pad").innerHTML = ["1","2","3","4","5","6","7","8","9","","0","⌫"].map(k => k === "" ? "<span></span>" : `<button class="key" data-k="${k}" aria-label="${k === "⌫" ? "Delete" : k}">${k}</button>`).join("");
 const paintDots = () => document.querySelectorAll("#dots i").forEach((d, i) => d.classList.toggle("on", i < pin.length));
 function showOutside() {
-  $("out").hidden = false;
-  if (TELEGRAM_LINK) { $("outBtn").href = TELEGRAM_LINK; $("outBtn").hidden = false; }
+  $("out").hidden = true;
+  $("lock").hidden = false;
+  if (TELEGRAM_LINK && browser()) { $("outBtn").href = TELEGRAM_LINK; $("outBtn").hidden = false; }
 }
-function showLock(msg) { pin = ""; paintDots(); $("lkM").textContent = msg || ""; $("lock").hidden = false; }
+function showLock(msg) {
+  pin = ""; paintDots();
+  $("lkM").textContent = msg || (browser() ? "Enter your passcode to open this in a browser." : "");
+  $("lock").hidden = false;
+  if (TELEGRAM_LINK && browser()) { $("outBtn").href = TELEGRAM_LINK; $("outBtn").hidden = false; }
+}
 function relock(msg) { session = ""; close(); $("tr").hidden = true; if (selecting) setSel(false); showLock(msg); }
 function wrong(msg) {
   pin = ""; paintDots(); $("lkM").textContent = msg;
@@ -509,15 +598,18 @@ function wrong(msg) {
 async function tryPin() {
   checking = true;
   try {
-    if (!live()) { // preview mode has no server
+    if (!serverMode()) { // design preview mode has no server
       if (PREVIEW && pin === "1234") { session = "demo"; pin = ""; $("lock").hidden = true; } else wrong("Wrong passcode. In this preview it is 1234.");
       return;
     }
-    const r = await fetch("/api/media?action=unlock", { method: "POST", headers: { "Content-Type": "application/json", Authorization: "tma " + tg.initData }, body: JSON.stringify({ pin }) });
+    const headers = { "Content-Type": "application/json" };
+    if (live()) headers.Authorization = "tma " + tg.initData;
+    const r = await fetch("/api/media?action=unlock", { method: "POST", headers, body: JSON.stringify({ pin }) });
     const j = await r.json().catch(() => ({}));
     if (r.ok) { session = j.session; pin = ""; $("lock").hidden = true; await load(); }
     else if (r.status === 429) wrong(`Too many tries. Try again in ${Math.max(1, Math.ceil((j.wait || 900) / 60))} min.`);
     else if (r.status === 401 && j.error === "wrong_pin") wrong(`Wrong passcode. ${j.left} ${j.left === 1 ? "try" : "tries"} left.`);
+    else if (r.status === 400 && j.error === "browser_password_not_configured") wrong("Browser access is not configured yet. Add ALBUM_PIN in Vercel.");
     else wrong("Couldn't check the passcode. Check your connection and try again.");
   } catch { wrong("Couldn't reach the server. Try again."); }
   finally { checking = false; }
@@ -550,7 +642,7 @@ function paintFavs() {
 async function setFav(keys, on) {
   keys.forEach(k => on ? favs.add(k) : favs.delete(k));
   paintFavs();
-  try { if (live()) await api("favorite", { keys, on }); }
+  try { if (serverMode()) await api("favorite", { keys, on }); }
   catch (e) { if (e.message === "locked") return; keys.forEach(k => on ? favs.delete(k) : favs.add(k)); paintFavs(); toast("Couldn't update favorites. Try again."); }
 }
 $("fv").onclick = () => { const k = items[idx].key; setFav([k], !favs.has(k)); };

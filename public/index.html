@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>David 💛 Huyền</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
+<script src="https://unpkg.com/@ffmpeg/ffmpeg@0.11.6/dist/ffmpeg.min.js"></script>
 <style>
 :root{--sat:calc(max(env(safe-area-inset-top,0px),var(--tg-safe-area-inset-top,0px)) + var(--tg-content-safe-area-inset-top,0px));--bg:#f6efeb;--card:#fff;--ink:#2a1c28;--mute:#65546a;--acc:#b23a5b;--on:#fff;--b1:#ffb3c7;--b2:#b9d4ff;--b3:#ffd9a8;--glass:rgba(255,255,255,.45);--edge:rgba(255,255,255,.75);
 box-sizing:border-box;padding-top:var(--sat);padding-bottom:env(safe-area-inset-bottom,0px)}
@@ -83,7 +84,7 @@ select{flex:1;font:inherit;color:var(--ink);background:var(--glass);border:1px s
 header{flex-direction:column;align-items:center;text-align:center;gap:2px;padding:24px 18px 10px}
 h1{font-size:32px}
 #sub{font:italic 16px Georgia,"Times New Roman",serif;color:var(--mute)}
-#n{font-size:12px;margin-top:4px}
+#n{font-size:12px;margin-top:4px}#storage{font-size:12px;color:var(--mute);margin-top:2px}
 .tools{display:flex;gap:6px;margin-top:8px}
 .tools button{padding:7px 14px;border-radius:999px;font-size:13px;background:var(--glass);border:1px solid var(--edge);-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}
 #selbar,.trbar{position:fixed;left:12px;right:12px;bottom:calc(14px + env(safe-area-inset-bottom,0px));z-index:26;display:flex;gap:8px;align-items:center;padding:10px;border-radius:22px;background:color-mix(in srgb,var(--card) 84%,transparent);border:1px solid var(--edge);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%)}
@@ -132,7 +133,7 @@ h1{font-size:32px}
 </head>
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
-<header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span></header>
+<header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span><span id="storage"></span></header>
 <div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="trBtn">Recently deleted</button></div></div>
 <div id="st"></div>
 <main id="g"></main>
@@ -203,6 +204,8 @@ const put = async (u, b, t) => {
 };
 const toast = m => { const e = $("toast"); e.textContent = m; e.hidden = false; clearTimeout(tt); tt = setTimeout(() => e.hidden = true, 2500); };
 const fmt = (d, o) => new Date(d).toLocaleDateString(undefined, o);
+const formatBytes = n => { if (!n) return "0 B"; const u=["B","KB","MB","GB","TB"]; let i=0,v=n; while(v>=1024&&i<u.length-1){v/=1024;i++;} return `${v>=100?Math.round(v):v>=10?v.toFixed(1):v.toFixed(2)} ${u[i]}`; };
+const updateStorage = n => { $("storage").textContent = n ? `${formatBytes(n)} used` : ""; };
 
 const demo = () => Array.from({ length: 12 }, (_, i) => {
   const e = ["💛","🌅","🍜","🌊","🎬","🌸"][i % 6], c = ["#e5789a","#f0a35e","#7cb7a3","#6f9ad4","#a487c9","#d97a7a"][i % 6];
@@ -309,7 +312,7 @@ $("tl").onclick = e => {
 };
 async function load() {
   if (!live() && PREVIEW) { all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode."; return; }
-  try { const r = await api("list"); all = r.items; trashItems = r.trash || []; favs = new Set(r.favs || []); apply(); }
+  try { const r = await api("list"); all = r.items; trashItems = r.trash || []; favs = new Set(r.favs || []); updateStorage(r.storageBytes || 0); apply(); }
   catch (e) { if (e.message === "locked") return; $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
 }
 
@@ -440,6 +443,31 @@ const putX = (u, b, t, on) => new Promise((res, rej) => { // upload with byte-by
   x.onerror = () => rej(new Error("Storage blocked the upload. Add this exact address to the R2 bucket's CORS rule (AllowedOrigins): " + location.origin));
   x.send(b);
 });
+let ffmpegInstance = null, ffmpegLoading = null;
+async function getFFmpeg() {
+  if (ffmpegInstance) return ffmpegInstance;
+  if (ffmpegLoading) return ffmpegLoading;
+  if (!window.FFmpeg) throw new Error("Video converter unavailable");
+  ffmpegLoading = (async () => {
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const f = createFFmpeg({ log: false, corePath: "https://unpkg.com/@ffmpeg/core@0.11.6/dist/ffmpeg-core.js" });
+    await f.load();
+    f.__fetchFile = fetchFile;
+    ffmpegInstance = f;
+    return f;
+  })();
+  try { return await ffmpegLoading; } finally { ffmpegLoading = null; }
+}
+async function makeCompatibleVideo(file, progress) {
+  const ff = await getFFmpeg(), input = `input-${Date.now()}-${Math.random().toString(36).slice(2)}.${(file.name.split(".").pop() || "mp4").replace(/[^a-z0-9]/gi, "")}`, output = input + ".mp4";
+  ff.FS("writeFile", input, await ff.__fetchFile(file));
+  try {
+    await ff.run("-i", input, "-map", "0:v:0", "-map", "0:a?", "-c:v", "libx264", "-preset", "veryfast", "-crf", "22", "-pix_fmt", "yuv420p", "-movflags", "+faststart", "-c:a", "aac", "-b:a", "128k", output);
+    const data = ff.FS("readFile", output);
+    progress && progress(1);
+    return new Blob([data.buffer], { type: "video/mp4" });
+  } finally { try { ff.FS("unlink", input); } catch {} try { ff.FS("unlink", output); } catch {} }
+}
 let busy = false;
 async function upload(files, when) {
   busy = true; if (tg && tg.enableClosingConfirmation) tg.enableClosingConfirmation();
@@ -454,6 +482,13 @@ async function upload(files, when) {
       const r = await api("upload", { name: f.name, type, size: f.size, lastModified: when ? shift(f.lastModified, when) : f.lastModified, thumb: !!th });
       await putX(r.url, f, type, n => { sent[i] = n; show(); });
       if (th && r.thumbUrl) { try { await put(r.thumbUrl, th, "image/jpeg"); } catch {} }
+      if (type.startsWith("video/") && r.compatibleUrl) {
+        try {
+          show();
+          const compatible = await makeCompatibleVideo(f, p => { sent[i] = Math.max(sent[i], f.size + Math.round(f.size * p)); show(); });
+          if (compatible) await putX(r.compatibleUrl, compatible, "video/mp4");
+        } catch (e) { console.warn("Compatible video copy failed", e); }
+      }
     } catch (e) { errs.push(e); failed.push(f); }
     sent[i] = files[i].size; done++; show();
   };
