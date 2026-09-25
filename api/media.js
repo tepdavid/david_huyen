@@ -200,6 +200,20 @@ module.exports = async (req, res) => {
       const favs = (await getFavs().catch(() => [])).filter((k) => have.has(k));
       return res.json({ items, trash, favs, storageBytes });
     }
+    if (req.query.action === "resolve") {
+      const key = String(b.key || "");
+      const playKey = String(b.playKey || key);
+      const base = key.slice(6);
+      const validMedia = key.startsWith("media/") && /^[\\w.-]+$/.test(base);
+      const validPlay = playKey === key || playKey === "compatible-v2/" + base + ".mp4" || playKey === "compatible/" + base + ".mp4";
+      if (!validMedia || !validPlay) return res.status(400).json({ error: "bad key" });
+      const type = /\\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image";
+      const [url, sourceUrl] = await Promise.all([
+        sign(playKey),
+        type === "video" ? sign(key) : Promise.resolve(null)
+      ]);
+      return res.json({ url, sourceUrl });
+    }
     if (req.query.action === "cleanupUpload") {
       const key = String(b.key || "");
       if (!/^media\/[\w.-]+$/.test(key)) return res.status(400).json({ error: "bad key" });
