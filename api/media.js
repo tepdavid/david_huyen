@@ -500,12 +500,16 @@ module.exports = async (req, res) => {
           }
         }
         await move(k, `media/${base}`);
-        await moveOptional(`trash-thumbs/${rest}.jpg`, `thumbs/${base}.jpg`);
-        await moveOptional(`trash-compatible-v2/${rest}.mp4`, `compatible-v2/${base}.mp4`);
-        await moveOptional(`trash-compatible/${rest}.mp4`, `compatible/${base}.mp4`);
-        return 1;
+        const thumbMoved = await moveOptional(`trash-thumbs/${rest}.jpg`, `thumbs/${base}.jpg`);
+        const compatibleV2Moved = await moveOptional(`trash-compatible-v2/${rest}.mp4`, `compatible-v2/${base}.mp4`);
+        const compatibleMoved = await moveOptional(`trash-compatible/${rest}.mp4`, `compatible/${base}.mp4`);
+        if (!thumbMoved || !compatibleV2Moved || !compatibleMoved) {
+          console.warn("partial restore companions", { key: k, thumbMoved, compatibleV2Moved, compatibleMoved });
+        }
+        return { key: k, partial: !thumbMoved || !compatibleV2Moved || !compatibleMoved };
       });
-      return res.json({ done: r.filter(Boolean).length });
+      const results = r.filter(Boolean), partial = results.filter((x) => x.partial).map((x) => x.key);
+      return res.json({ done: results.length, partial: partial.length, partialKeys: partial });
     }
 
     if (req.query.action === "erase") { // delete forever
