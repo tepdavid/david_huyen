@@ -15,6 +15,6 @@ Set these environment variables first:
 - `R2_SECRET_ACCESS_KEY`
 - `R2_BUCKET`
 
-The script does **not** replace or delete originals. It creates `compatible/<original-name>.mp4`. The app automatically uses that copy for playback.
+The script does **not** replace or delete originals. It creates `compatible-v2/<original-name>.mp4`. The app automatically prefers that copy for playback and still supports the legacy `compatible/` path.
 
 New videos imported with `bulk-upload.js` also get a compatible copy automatically when FFmpeg is available.
