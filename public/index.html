@@ -402,8 +402,21 @@ async function refreshData(){ if($("refreshBtn")){ $("refreshBtn").classList.add
 
 async function load() {
   if (!live() && PREVIEW) { all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode."; return; }
-  try { const r = await api("list"); all = r.items; trashItems = r.trash || []; favs = new Set(r.favs || []); updateStorage(r.storageBytes || 0); apply(); }
-  catch (e) { if (e.message === "locked") return; $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Couldn't load your memories. Close and reopen the app to try again."}</p>`; }
+  try {
+    listCursor = null; listLoading = true; listDone = false; storageLoadedBytes = 0; all = []; trashItems = []; favs = new Set();
+    const r = await api("list", {});
+    all = r.items || [];
+    listCursor = r.nextCursor || null;
+    listDone = !listCursor;
+    trashItems = r.trash || [];
+    favs = new Set(r.favs || []);
+    storageLoadedBytes = Number(r.storageBytes) || 0;
+    apply();
+    if (listDone) updateStorage(storageLoadedBytes);
+  } catch (e) {
+    if (e.message === "locked") return;
+    $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Unable to load your memories. Close and reopen the app to try again."}</p>`;
+  } finally { listLoading = false; }
 }
 
 async function show(i) {
@@ -436,15 +449,33 @@ async function show(i) {
 }
 const close = () => { $("v").hidden = true; $("m").innerHTML = ""; if (cat === "fav") apply(); };
 let loadMoreObserver = null;
+async function loadNextPage() {
+  if (listLoading || listDone) return;
+  listLoading = true;
+  try {
+    const r = await api("list", { cursor: listCursor });
+    if (r.items?.length) all = all.concat(r.items);
+    listCursor = r.nextCursor || null;
+    listDone = !listCursor;
+    if (Number.isFinite(r.storageBytes)) storageLoadedBytes += r.storageBytes;
+    if (r.trash?.length) trashItems = r.trash;
+    if (r.favs?.length || !listCursor) favs = new Set(r.favs || []);
+    apply();
+    if (listDone) updateStorage(storageLoadedBytes);
+  } catch (e) {
+    if (e.message === "locked") return;
+    toast("Unable to load more memories. Please try again.");
+  } finally {
+    listLoading = false;
+  }
+}
 function observeMore() {
   if (loadMoreObserver) loadMoreObserver.disconnect();
   const sentinel = $("loadMoreSentinel");
-  if (!sentinel || renderLimit >= items.length) return;
+  if (!sentinel || listDone) return;
   loadMoreObserver = new IntersectionObserver(entries => {
     if (!entries.some(x => x.isIntersecting)) return;
-    if (renderLimit >= items.length) return;
-    renderLimit += 300;
-    draw();
+    loadNextPage();
   }, { rootMargin: "900px 0px" });
   loadMoreObserver.observe(sentinel);
 }
