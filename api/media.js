@@ -185,11 +185,17 @@ module.exports = async (req, res) => {
     const raw = String(req.headers["x-session"] || "");
     let good = false;
     if (browserMode) {
-      const [kind, exp, sig = ""] = raw.split(".");
-      good = kind === "web" && Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp, "web")));
+      const [kind, exp, sig = "", ...extra] = raw.split(".");
+      if (extra.length === 0 && kind === "web" && /^\\d+$/.test(exp) && Number(exp) > Date.now() && /^[0-9a-f]{64}$/.test(sig)) {
+        const expected = mac(exp, "web");
+        good = crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
+      }
     } else if (pinOn) {
-      const [kind, id, exp, sig = ""] = raw.split(".");
-      good = kind === "tg" && id === String(user.id) && Number(exp) > Date.now() && sig.length === 64 && crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(mac(exp, String(user.id))));
+      const [kind, id, exp, sig = "", ...extra] = raw.split(".");
+      if (extra.length === 0 && kind === "tg" && id === String(user.id) && /^\\d+$/.test(exp) && Number(exp) > Date.now() && /^[0-9a-f]{64}$/.test(sig)) {
+        const expected = mac(exp, String(user.id));
+        good = crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
+      }
     } else good = true;
     if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
 
