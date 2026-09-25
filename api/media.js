@@ -381,17 +381,6 @@ module.exports = async (req, res) => {
       return res.json({ done: true });
     }
 
-    if (req.query.action === "compatible") {
-      const key = String(b.key || "");
-      if (!/^media\/[\w.-]+$/.test(key) || !/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(key.slice(6))) return res.status(400).json({ error: "bad key" });
-      const base = key.slice(6);
-      if (!(await hasUploadMarker(base))) return res.status(409).json({ error: "upload_not_active" });
-      // The client converts the original bytes to H.264/AAC in WASM, then uploads this copy.
-      const uploadKey = `compatible-v2/${base}.mp4`;
-      const thumbKey = `thumbs/${base}.jpg`;
-      return res.json({ uploadUrl: await put(uploadKey, "video/mp4"), playUrl: await sign(uploadKey), thumbUrl: await put(thumbKey, "image/jpeg"), key: uploadKey });
-    }
-
     if (req.query.action === "upload") {
       const type = String(b.type || "");
       const size = Number(b.size);
