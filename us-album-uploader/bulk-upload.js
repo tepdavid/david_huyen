@@ -38,9 +38,9 @@ async function compatibleVideo(file, base) {
 async function thumb(file, video) {
   try {
     if (!video) return await sharp(file).rotate().resize(400).jpeg({ quality: 80 }).toBuffer();
-    const tmp = path.join(require("os").tmpdir(), "us-thumb.jpg");
+    const tmp = path.join(require("os").tmpdir(), `us-thumb-${crypto.randomBytes(6).toString("hex")}.jpg`);
     execFileSync("ffmpeg", ["-y", "-ss", "1", "-i", file, "-frames:v", "1", "-vf", "scale=400:-2", tmp], { stdio: "ignore" });
-    return fs.readFileSync(tmp);
+    try { return fs.readFileSync(tmp); } finally { try { fs.unlinkSync(tmp); } catch {} }
   } catch { return null; } // no thumbnail (HEIC, or ffmpeg not installed): the app still works
 }
 
