@@ -168,8 +168,8 @@ module.exports = async (req, res) => {
         const compatible = type === "video" && (have.has(compatibleV2) || have.has(compatibleV1)) ? (have.has(compatibleV2) ? compatibleV2 : compatibleV1) : null;
         const playKey = compatible || o.Key;
         const [url, sourceUrl, thumb] = await Promise.all([
-          sign(playKey),
-          type === "video" ? sign(o.Key) : Promise.resolve(null),
+          type === "video" ? Promise.resolve(null) : (have.has(tk) ? Promise.resolve(null) : sign(o.Key)),
+          Promise.resolve(null),
           have.has(tk) ? sign(tk) : Promise.resolve(null)
         ]);
         return { key: o.Key, playKey, size: Number(o.Size) || 0, date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0, type, url, sourceUrl, thumb, compatible: playKey !== o.Key, timeline: base.startsWith("other-") ? "other" : "date" };
