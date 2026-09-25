@@ -187,7 +187,7 @@ const $ = id => document.getElementById(id);
 const live = () => tg && tg.initData;
 const serverMode = () => live() || !PREVIEW;
 const browser = () => !live();
-let all = [], items = [], idx = 0, tt, cat = "image", lastCat = "image", session = "", favs = new Set();
+let all = [], items = [], idx = 0, tt, cat = "image", lastCat = "image", session = "", favs = new Set(), catalogStats = { images: 0, videos: 0, other: 0, favorites: 0 };
 let sortMode = localStorage.getItem("memorySort") || "newest", query = "", themeMode = localStorage.getItem("memoryTheme") || "auto";
 $("t").textContent = TITLE; $("sub").textContent = SUBTITLE;
 function applyTheme(){ if(themeMode === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme=themeMode; $("themeBtn").textContent=themeMode==="dark"?"☾":themeMode==="light"?"☀":"◐"; }
@@ -225,16 +225,32 @@ function apply() {
   renderLimit = 300;
   if (selecting) setSel(false);
   if (cat !== "fav" && cat !== "all") lastCat = cat;
-  items = (cat === "fav" ? all.filter(i => favs.has(i.key)) : cat === "all" ? all.slice() : cat === "other" ? all.filter(i => i.timeline === "other") : all.filter(i => i.type === cat));
-  if(query){ const q=query.toLowerCase(); items=items.filter(i => String(i.key).toLowerCase().includes(q) || fmt(i.date,{year:"numeric",month:"long",day:"numeric"}).toLowerCase().includes(q)); }
+  const q = query.toLowerCase();
+  const wantFav = cat === "fav", wantAll = cat === "all", wantOther = cat === "other";
+  const next = [];
+  let images = 0, videos = 0, other = 0, favorites = 0;
+  for (const it of all) {
+    if (it.type === "video") videos++; else images++;
+    if (it.timeline === "other") other++;
+    if (favs.has(it.key)) favorites++;
+    const categoryMatch = wantFav ? favs.has(it.key) : wantAll ? true : wantOther ? it.timeline === "other" : it.type === cat;
+    if (!categoryMatch) continue;
+    if (q) {
+      const dateText = it._searchDate || (it._searchDate = fmt(it.date,{year:"numeric",month:"long",day:"numeric"}).toLowerCase());
+      if (!String(it.key).toLowerCase().includes(q) && !dateText.includes(q)) continue;
+    }
+    next.push(it);
+  }
+  catalogStats = { images, videos, other, favorites };
+  items = next;
   items.sort((a,b)=>sortMode === "oldest" ? a.date-b.date : b.date-a.date);
   calendarCache = null;
   $("allBtn").textContent = "All" + (all.length ? ` (${all.length})` : ""); $("allBtn").classList.toggle("on", cat === "all");
   favLabel();
   $("trBtn").textContent = "Recently deleted" + (trashItems.length ? ` (${trashItems.length})` : "");
   document.querySelectorAll("#seg button").forEach(b => b.classList.toggle("on", b.dataset.c === cat));
-  $("cp").textContent = all.filter(i => i.type === "image").length;
-  $("cv").textContent = all.filter(i => i.type === "video").length;
+  $("cp").textContent = images;
+  $("cv").textContent = videos;
   draw();
 }
 $("seg").onclick = e => { const b = e.target.closest("button"); if (!b) return; cat = b.dataset.c; apply(); scrollTo(0, 0); };
@@ -736,8 +752,9 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) hidde
 // Favorites
 const favIcon = () => { const on = favs.has(items[idx].key); $("fv").textContent = on ? "♥" : "♡"; $("fv").classList.toggle("on", on); };
 const favLabel = () => {
-  const n = all.filter(i => favs.has(i.key)).length;
-  $("favBtn").textContent = "♥ Favorite" + (n ? ` (${n})` : ""); $("favBtn").classList.toggle("on", cat === "fav"); $("otherBtn").textContent = "Others" + (all.filter(i => i.timeline === "other").length ? ` (${all.filter(i => i.timeline === "other").length})` : ""); $("otherBtn").classList.toggle("on", cat === "other");
+  const n = catalogStats.favorites;
+  $("favBtn").textContent = "♥ Favorite" + (n ? ` (${n})` : ""); $("favBtn").classList.toggle("on", cat === "fav");
+  $("otherBtn").textContent = "Others" + (catalogStats.other ? ` (${catalogStats.other})` : ""); $("otherBtn").classList.toggle("on", cat === "other");
 };
 function paintFavs() {
   if (cat === "fav" && $("v").hidden) return apply(); // an un-hearted item leaves the Favorite list
@@ -750,6 +767,8 @@ function paintFavs() {
 }
 async function setFav(keys, on) {
   keys.forEach(k => on ? favs.add(k) : favs.delete(k));
+  catalogStats.favorites += on ? keys.filter(k => !favs.has(k)).length : 0;
+  catalogStats.favorites = all.reduce((n, i) => n + (favs.has(i.key) ? 1 : 0), 0);
   paintFavs();
   try { if (serverMode()) await api("favorite", { keys, on }); }
   catch (e) { if (e.message === "locked") return; keys.forEach(k => on ? favs.delete(k) : favs.add(k)); paintFavs(); toast("Couldn't update favorites. Try again."); }
