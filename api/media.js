@@ -191,11 +191,11 @@ module.exports = async (req, res) => {
         // Browser uploads are marked until the client finishes conversion/finalization.
         // If a tab is closed mid-upload, the marker becomes stale and its objects are reclaimed.
         const uploadPage = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: "_uploads/", MaxKeys: 500 }));
-        const now = Date.now(), orphan = [];
+        const uploadNow = Date.now(), orphan = [];
         for (const o of uploadPage.Contents || []) {
           if (!o || typeof o.Key !== "string" || !o.Key.startsWith("_uploads/")) continue;
           const token = o.Key.slice(9), cut = token.indexOf("~"), at = Number(token.slice(0, cut)), base = cut >= 0 ? token.slice(cut + 1) : "";
-          if (at > 0 && base && now - at > 2 * 3600e3) orphan.push(
+          if (at > 0 && base && uploadNow - at > 2 * 3600e3) orphan.push(
             { Key: o.Key }, { Key: `media/${base}` }, { Key: `thumbs/${base}.jpg` },
             { Key: `compatible-v2/${base}.mp4` }, { Key: `compatible/${base}.mp4` }
           );
