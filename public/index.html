@@ -966,7 +966,7 @@ $("appnav").onclick=async e=>{
   if(name==="home"){ cat="all"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
   else if(name==="fav"){ $("timelineView").hidden=true; cat="fav"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
   else if(name==="other"){ $("timelineView").hidden=true; cat="other"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
-  else if(name==="trash"){ tsel.clear(); drawTrash(); $("tr").hidden=false; setNavActive(name); }
+  else if(name==="trash"){ $("timelineView").hidden=true; tsel.clear(); drawTrash(); $("tr").hidden=false; setNavActive(name); }
   else if(name==="timeline"){
     openTimeline();
   }
