@@ -133,12 +133,35 @@ h1{font-size:32px;color:#fff}
 .hv{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;font-style:normal;font-size:15px;line-height:26px;text-align:center;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .hv::after{content:"";position:absolute;inset:-8px}
 .hv.on{background:rgba(255,255,255,.88);color:#ff4d75}
-.vfail{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;width:100%;height:100%;color:#fff;text-align:center;padding:24px;box-sizing:border-box}.vfail img{width:auto!important;height:auto!important;max-width:80%;max-height:55%;border-radius:16px}.vfail p{margin:0;font-weight:700}.vfail small{max-width:420px;opacity:.72;line-height:1.4}</style>
+.vfail{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;width:100%;height:100%;color:#fff;text-align:center;padding:24px;box-sizing:border-box}.vfail img{width:auto!important;height:auto!important;max-width:80%;max-height:55%;border-radius:16px}.vfail p{margin:0;font-weight:700}.vfail small{max-width:420px;opacity:.72;line-height:1.4}
+/* Mobile memory-album polish */
+header{min-height:210px;padding-bottom:14px}
+header h1{font-size:30px;letter-spacing:.1px}
+#sub{font-size:15px}
+#storage{opacity:.9}
+#top{padding-bottom:10px}
+.tools{gap:6px}
+.tools button{min-height:38px}
+.fab{right:18px;bottom:calc(82px + env(safe-area-inset-bottom,0px));width:54px;height:54px}
+.appnav{position:fixed;left:10px;right:10px;bottom:calc(10px + env(safe-area-inset-bottom,0px));z-index:24;display:grid;grid-template-columns:repeat(5,1fr);gap:5px;padding:7px;border:1px solid var(--edge);border-radius:22px;background:color-mix(in srgb,var(--card) 78%,transparent);-webkit-backdrop-filter:blur(28px) saturate(180%);backdrop-filter:blur(28px) saturate(180%);box-shadow:0 10px 30px #0003}
+.appnav button{min-width:0;padding:7px 3px 6px;border-radius:16px;color:var(--mute);font-size:10px;line-height:1.15;display:flex;flex-direction:column;align-items:center;gap:3px}
+.appnav button b{font-size:18px;line-height:18px;font-weight:500}
+.appnav button.on{background:var(--acc);color:var(--on);box-shadow:inset 0 1px 0 #fff5,0 4px 12px #0002}
+#st{padding-bottom:4px}
+@media(min-width:700px){.appnav{max-width:520px;left:50%;right:auto;transform:translateX(-50%)}.fab{right:28px}.grid{grid-template-columns:repeat(4,1fr)}}
+</style>
 </head>
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
 <header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span><span id="storage"></span></header>
 <div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="otherBtn">Others</button><button id="trBtn">Recently deleted</button><button id="searchBtn" class="icon" aria-label="Search" title="Search">⌕</button><div class="sortbox"><button id="sortBtn" class="icon" aria-label="Sort" title="Sort">↕</button><div id="sortMenu" class="sortmenu"><button data-sort="newest" class="on">Newest first</button><button data-sort="oldest">Oldest first</button><button data-sort="moments">Smart moments</button></div></div><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div><div class="search" id="search"><input id="searchInput" type="search" placeholder="Search memories…" autocomplete="off"><button id="searchClear" aria-label="Clear search">✕</button></div></div></div>
+<nav class="appnav" id="appnav" aria-label="Main navigation">
+  <button data-nav="home" class="on"><b>⌂</b><span>Home</span></button>
+  <button data-nav="fav"><b>♥</b><span>Favorites</span></button>
+  <button data-nav="timeline"><b>◷</b><span>Timeline</span></button>
+  <button data-nav="other"><b>▣</b><span>Others</span></button>
+  <button data-nav="trash"><b>⌫</b><span>Deleted</span></button>
+</nav>
 <div id="st"></div><div id="homehint" class="homehint">Your memories are organized automatically by year and month.</div>
 <main id="g"></main>
 <label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
@@ -174,7 +197,7 @@ h1{font-size:32px;color:#fff}
 </div>
 <script>
 const TITLE = "David 💛 Huyền"; // change to your own title
-const SUBTITLE = "Our love our memories."; // change to your own subtitle
+const SUBTITLE = "Our love. Our memories."; // change to your own subtitle
 const PREVIEW = false; // true only for the design preview in chat. Leave false on your real site.
 const TELEGRAM_LINK = "https://t.me/ourmemoryforever_bot/david_huyen"; // your album's link, like https://t.me/YOUR_BOT/APP_NAME. Adds an "Open in Telegram" button.
 const tg = window.Telegram && window.Telegram.WebApp;
@@ -873,15 +896,15 @@ async function setFav(keys, on) {
   catch (e) { if (e.message === "locked") return; keys.forEach(k => on ? favs.delete(k) : favs.add(k)); paintFavs(); toast("Couldn't update favorites. Try again."); }
 }
 $("fv").onclick = () => { const k = items[idx].key; setFav([k], !favs.has(k)); };
-$("allBtn").onclick = () => { cat = cat === "all" ? lastCat : "all"; apply(); scrollTo(0, 0); };
-$("favBtn").onclick = () => { cat = cat === "fav" ? lastCat : "fav"; apply(); scrollTo(0, 0); };
+$("allBtn").onclick = () => { cat = cat === "all" ? lastCat : "all"; setNavActive(cat === "all" ? "home" : ""); apply(); scrollTo(0, 0); };
+$("favBtn").onclick = () => { cat = cat === "fav" ? lastCat : "fav"; setNavActive(cat === "fav" ? "fav" : ""); apply(); scrollTo(0, 0); };
 $("selFav").onclick = async () => {
   if (!sel.size) return toast("Tap the photos you want to favorite");
   const keys = [...sel], on = !keys.every(k => favs.has(k));
   await setFav(keys, on); setSel(false); toast(on ? "Added to Favorites" : "Removed from Favorites");
 };
 
-$("otherBtn").onclick = () => { cat = cat === "other" ? lastCat : "other"; apply(); scrollTo(0, 0); };
+$("otherBtn").onclick = () => { cat = cat === "other" ? lastCat : "other"; setNavActive(cat === "other" ? "other" : ""); apply(); scrollTo(0, 0); };
 $("searchBtn").onclick=toggleSearch;
 $("searchClear").onclick=()=>{ $("searchInput").value=""; query=""; apply(); $("searchInput").focus(); };
 $("searchInput").addEventListener("input",e=>{query=e.target.value.trim(); apply();});
@@ -893,6 +916,20 @@ $("share").onclick=shareCurrent;
 document.addEventListener("click",e=>{if(!e.target.closest(".sortbox"))$("sortMenu").classList.remove("open");});
 document.querySelectorAll("#sortMenu button").forEach(b=>b.classList.toggle("on",b.dataset.sort===sortMode));
 
+
+function setNavActive(name){ document.querySelectorAll("#appnav button").forEach(b=>b.classList.toggle("on",b.dataset.nav===name)); }
+$("appnav").onclick=async e=>{
+  const b=e.target.closest("button[data-nav]"); if(!b) return;
+  const name=b.dataset.nav;
+  if(name==="home"){ cat="all"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
+  else if(name==="fav"){ cat="fav"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
+  else if(name==="other"){ cat="other"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
+  else if(name==="trash"){ tsel.clear(); drawTrash(); $("tr").hidden=false; setNavActive(name); }
+  else if(name==="timeline"){
+    setNavActive(name);
+    $("tl").scrollIntoView({behavior:"smooth",block:"center"});
+  }
+};
 load();
 </script>
 </body>
