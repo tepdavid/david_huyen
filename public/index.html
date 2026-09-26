@@ -444,6 +444,7 @@ async function load() {
     storageLoadedBytes = Number(r.storageBytes) || 0;
     apply();
     if (listDone) updateStorage(storageLoadedBytes);
+    scheduleViewerWarmup();
   } catch (e) {
     if (e.message === "locked" || e.message === "setup_required") return;
     if (e.message === "storage_not_configured" || e.message === "storage_unreachable") { $("g").innerHTML = `<p class="empty">${e.reason || "Cloud storage is not available. Check the R2 configuration in Vercel."}</p>`; return; }
@@ -451,16 +452,36 @@ async function load() {
   } finally { listLoading = false; }
 }
 
+function cacheResolved(it,r){
+  it.url=r.url;
+  if(r.sourceUrl)it.sourceUrl=r.sourceUrl;
+  if(r.playKey)it.playKey=r.playKey;
+  if(typeof r.compatible==="boolean")it.compatible=r.compatible;
+}
+async function warmViewerItem(it){
+  if(!it||it.url)return;
+  try{const r=await api("resolve",{key:it.key,playKey:it.playKey||it.key});cacheResolved(it,r);}catch{}
+}
+function scheduleViewerWarmup(){
+  const candidates=[],image=all.find(x=>x.type==="image"),video=all.find(x=>x.type==="video");
+  if(image)candidates.push(image);
+  if(video)candidates.push(video);
+  const run=()=>Promise.all(candidates.map(warmViewerItem));
+  if(window.requestIdleCallback)requestIdleCallback(run,{timeout:2500});else setTimeout(run,900);
+}
+function warmViewerNeighbors(center){
+  if(!items.length)return;
+  const candidates=[items[(center+1)%items.length],items[(center-1+items.length)%items.length]];
+  const uniq=[...new Map(candidates.filter(Boolean).map(x=>[x.key,x])).values()];
+  return Promise.all(uniq.map(warmViewerItem));
+}
 async function show(i) {
   idx = (i + items.length) % items.length;
   const it = items[idx];
   try {
     if (!it.url) {
       const r = await api("resolve", { key: it.key, playKey: it.playKey || it.key });
-      it.url = r.url;
-      if (r.sourceUrl) it.sourceUrl = r.sourceUrl;
-      if (r.playKey) it.playKey = r.playKey;
-      if (typeof r.compatible === "boolean") it.compatible = r.compatible;
+      cacheResolved(it,r);
     }
     if (it.type === "video" && !it.url.startsWith("data:")) {
       const poster = it.thumb ? ` poster="${it.thumb}"` : "";
@@ -477,6 +498,7 @@ async function show(i) {
     $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     $("v").hidden = false;
     favIcon();
+    warmViewerNeighbors(idx);
   } catch {
     toast("Couldn't open this memory. Please try again.");
   }
