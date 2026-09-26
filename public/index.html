@@ -454,7 +454,7 @@ async function show(i){
 const close = () => { viewerRequestId++; $("v").hidden = true; $("m").innerHTML = ""; if (cat === "fav") apply(); };
 let loadMoreObserver = null;
 async function loadNextPage(silent=false) {
-  if (listLoading || listDone) return;
+  if (listLoading || listDone) return false;
   listLoading = true;
   try {
     const previousLimit = renderLimit;
@@ -477,16 +477,19 @@ async function loadNextPage(silent=false) {
     }
     if (listDone) updateStorage(storageLoadedBytes);
   } catch (e) {
-    if (e.message === "locked") return;
+    if (e.message === "locked") return false;
     if (!silent) toast("Unable to load more memories. Please try again.");
+    return false;
   } finally {
     listLoading = false;
   }
+  return true;
 }
 async function loadRemainingPages() {
   if (listDone || listLoading) return;
   while (!listDone) {
-    await loadNextPage(true);
+    const ok = await loadNextPage(true);
+    if (!ok) break;
     if (!listDone) {
       await new Promise(function(resolve){
         if (window.requestIdleCallback) requestIdleCallback(resolve,{timeout:1000});
