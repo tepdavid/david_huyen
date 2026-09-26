@@ -161,7 +161,7 @@ header h1{font-size:30px;letter-spacing:.1px}
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
 <header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span><span id="storage"></span></header>
-<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="searchBtn" class="icon" aria-label="Search" title="Search">⌕</button><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div><div class="search" id="search"><input id="searchInput" type="search" placeholder="Search memories…" autocomplete="off"><button id="searchClear" aria-label="Clear search">✕</button></div></div></div>
+<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div></div></div>
 <nav class="appnav" id="appnav" aria-label="Main navigation">
   <button data-nav="home" class="on"><b>⌂</b><span>Home</span></button>
   <button data-nav="fav"><b>♥</b><span>Favorites</span></button>
@@ -218,7 +218,7 @@ const live = () => tg && tg.initData;
 const serverMode = () => live() || !PREVIEW;
 const browser = () => !live();
 let all = [], items = [], idx = 0, tt, cat = "all", lastCat = "all", session = "", favs = new Set(), catalogStats = { images: 0, videos: 0, other: 0, favorites: 0 };
-let sortMode = localStorage.getItem("memorySort") || "newest", query = "", themeMode = localStorage.getItem("memoryTheme") || "auto";
+let sortMode = localStorage.getItem("memorySort") || "newest", themeMode = localStorage.getItem("memoryTheme") || "auto";
 $("t").textContent = TITLE; $("sub").textContent = SUBTITLE;
 function applyTheme(){ if(themeMode === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme=themeMode; $("themeBtn").textContent=themeMode==="dark"?"☾":themeMode==="light"?"☀":"◐"; }
 applyTheme();
@@ -257,7 +257,6 @@ function apply() {
   renderLimit = 300;
   if (selecting) setSel(false);
   if (cat !== "fav" && cat !== "all") lastCat = cat;
-  const q = query.toLowerCase();
   const wantFav = cat === "fav", wantAll = cat === "all", wantOther = cat === "other";
   const next = [];
   let images = 0, videos = 0, other = 0, favorites = 0;
@@ -267,10 +266,6 @@ function apply() {
     if (favs.has(it.key)) favorites++;
     const categoryMatch = wantFav ? favs.has(it.key) : wantAll ? true : wantOther ? it.timeline === "other" : it.type === cat;
     if (!categoryMatch) continue;
-    if (q) {
-      const dateText = it._searchDate || (it._searchDate = fmt(it.date,{year:"numeric",month:"long",day:"numeric"}).toLowerCase());
-      if (!String(it.key).toLowerCase().includes(q) && !dateText.includes(q)) continue;
-    }
     next.push(it);
   }
   catalogStats = { images, videos, other, favorites };
@@ -430,7 +425,6 @@ async function shareCurrent(){
   try{ if(navigator.share){ await navigator.share({title:TITLE,text}); } else { await navigator.clipboard.writeText(text); toast("Memory date copied"); } }catch(e){}
 }
 function setSort(mode){ sortMode=mode; localStorage.setItem("memorySort",mode); document.querySelectorAll("#sortMenu button").forEach(b=>b.classList.toggle("on",b.dataset.sort===mode)); apply(); }
-function toggleSearch(){ const e=$("search"); e.classList.toggle("open"); if(e.classList.contains("open")){ $("searchInput").focus(); } else { query=""; $("searchInput").value=""; apply(); } }
 let pullStart=0, pullArmed=false;
 addEventListener("touchstart",e=>{ if(scrollY<=4) pullStart=e.touches[0].clientY; },{passive:true});
 addEventListener("touchmove",e=>{ if(pullStart && e.touches[0].clientY-pullStart>70) pullArmed=true; },{passive:true});
@@ -923,9 +917,6 @@ $("selFav").onclick = async () => {
   await setFav(keys, on); setSel(false); toast(on ? "Added to Favorites" : "Removed from Favorites");
 };
 
-$("searchBtn").onclick=toggleSearch;
-$("searchClear").onclick=()=>{ $("searchInput").value=""; query=""; apply(); $("searchInput").focus(); };
-$("searchInput").addEventListener("input",e=>{query=e.target.value.trim(); apply();});
 $("themeBtn").onclick=()=>{themeMode=themeMode==="auto"?"light":themeMode==="light"?"dark":"auto";localStorage.setItem("memoryTheme",themeMode);applyTheme();};
 $("refreshBtn").onclick=refreshData;
 $("share").onclick=shareCurrent;
@@ -955,7 +946,7 @@ function setNavActive(name){ document.querySelectorAll("#appnav button").forEach
 $("appnav").onclick=async e=>{
   const b=e.target.closest("button[data-nav]"); if(!b) return;
   const name=b.dataset.nav;
-  if(name==="home"){ cat="all"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
+  if(name==="home"){ $("timelineView").hidden=true; cat="all"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
   else if(name==="fav"){ $("timelineView").hidden=true; cat="fav"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
   else if(name==="other"){ $("timelineView").hidden=true; cat="other"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
   else if(name==="trash"){ $("timelineView").hidden=true; tsel.clear(); drawTrash(); $("tr").hidden=false; setNavActive(name); }
