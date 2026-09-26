@@ -497,14 +497,6 @@ module.exports = async (req, res) => {
           markerCreatedAt > Date.now() + 5 * 60e3 || Date.now() - markerCreatedAt > 2 * 3600e3) {
         return res.status(409).json({ error: "upload_expired" });
       }
-      if (/^video\//.test(marker.type || "")) {
-        try {
-          await s3.send(new HeadObjectCommand({ Bucket, Key: `_staging/${token}/compatible.mp4` }));
-        } catch {
-          return res.status(409).json({ error: "video_conversion_incomplete" });
-        }
-      }
-
       const stageMedia = "_staging/" + token + "/media";
       const stageThumb = "_staging/" + token + "/thumb.jpg";
       const stageCompatible = "_staging/" + token + "/compatible.mp4";
@@ -522,10 +514,11 @@ module.exports = async (req, res) => {
         return true;
       };
       if (!await ensureCommitted(stageMedia, key, true)) return res.status(409).json({ error: "upload_incomplete" });
-      if (marker.thumb && !await ensureCommitted(stageThumb, "thumbs/" + base + ".jpg", true))
-        return res.status(409).json({ error: "thumbnail_incomplete" });
-      if (/^video\//.test(marker.type || "") && !await ensureCommitted(stageCompatible, "compatible-v2/" + base + ".mp4", true))
-        return res.status(409).json({ error: "video_conversion_incomplete" });
+      // Thumbnails and browser-generated compatible videos are optional companions.
+      // The original upload is the durable source and must be committed even when
+      // client-side conversion or thumbnail generation was unavailable.
+      if (marker.thumb) await ensureCommitted(stageThumb, "thumbs/" + base + ".jpg", false);
+      if (/^video\//.test(marker.type || "")) await ensureCommitted(stageCompatible, "compatible-v2/" + base + ".mp4", false);
       await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: [{ Key: "_uploads/" + token }] } }));
       return res.json({ done: true });
     }
