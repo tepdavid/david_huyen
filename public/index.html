@@ -135,7 +135,7 @@ h1{font-size:32px;color:#fff}
 .timelineYears{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px;padding:10px 14px 4px}.timelineYear{min-width:0;padding:8px 4px;border-radius:999px;background:var(--glass);border:1px solid var(--edge);color:var(--mute);font-weight:600;font-size:12px}.timelineYear.on{background:var(--acc);color:var(--on);border-color:transparent}
 .timelineMonths{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;padding:8px 14px 12px}.timelineMonth{min-width:0;padding:9px 4px;border-radius:14px;background:var(--glass);border:1px solid var(--edge);color:var(--mute);font-size:11px;text-align:center}.timelineMonth.on{background:var(--acc);color:var(--on);border-color:transparent}.timelineMonth.empty{opacity:.42}
 .timelineBody{padding:0 0 20px}.timelineYearTitle{padding:18px 18px 7px;font:italic 700 27px Georgia,serif;color:var(--acc)}.timelineMonthBlock.emptyMonth{opacity:.62}.timelineNoMemories{color:var(--mute);font-size:11px;padding:0 18px 10px}.timelineMonthTitle{display:flex;align-items:center;justify-content:space-between;padding:9px 18px 7px;font:600 14px Georgia,serif;color:var(--mute);scroll-margin-top:150px}.timelineMonthTitle small{font:11px system-ui,sans-serif;opacity:.72}.timelineEmpty{text-align:center;color:var(--mute);padding:30px 20px}.timelineLoad{display:block;margin:14px auto;padding:10px 18px;border-radius:999px;background:var(--acc);color:var(--on);font-weight:600}.timelineHint{text-align:center;color:var(--mute);font-size:11px;padding:8px 18px 0}@media(min-width:700px){.timelineMonths{grid-template-columns:repeat(6,minmax(0,1fr))}.timelineView{padding-bottom:100px}}
-.homehint{font-size:12px;color:var(--mute);text-align:center;padding:2px 18px 10px}.tile .dateBadge{position:absolute;left:7px;bottom:6px;padding:3px 6px;border-radius:999px;background:#0006;color:#fff;font-size:10px;backdrop-filter:blur(8px)}
+.homeYear{padding-top:4px}.homeYearTitle{padding:18px 18px 8px;font:italic 700 27px Georgia,serif;color:var(--acc);scroll-margin-top:calc(270px + var(--sat))}.homeMonth{padding-bottom:4px}.homeMonthTitle{display:flex;align-items:center;justify-content:space-between;padding:8px 18px 7px;font:600 14px Georgia,serif;color:var(--mute)}.homeMonthTitle small{font:11px system-ui,sans-serif;opacity:.72}.homehint{font-size:12px;color:var(--mute);text-align:center;padding:2px 18px 10px}.tile .dateBadge{position:absolute;left:7px;bottom:6px;padding:3px 6px;border-radius:999px;background:#0006;color:#fff;font-size:10px;backdrop-filter:blur(8px)}
 
 .hv{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;font-style:normal;font-size:15px;line-height:26px;text-align:center;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
 .hv::after{content:"";position:absolute;inset:-8px}
@@ -218,7 +218,7 @@ const live = () => tg && tg.initData;
 const serverMode = () => live() || !PREVIEW;
 const browser = () => !live();
 let all = [], items = [], idx = 0, tt, cat = "all", lastCat = "all", session = "", favs = new Set(), catalogStats = { images: 0, videos: 0, other: 0, favorites: 0 };
-let sortMode = localStorage.getItem("memorySort") || "newest", themeMode = localStorage.getItem("memoryTheme") || "auto";
+let sortMode = "newest", themeMode = localStorage.getItem("memoryTheme") || "auto";
 $("t").textContent = TITLE; $("sub").textContent = SUBTITLE;
 function applyTheme(){ if(themeMode === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme=themeMode; $("themeBtn").textContent=themeMode==="dark"?"☾":themeMode==="light"?"☀":"◐"; }
 applyTheme();
@@ -341,8 +341,8 @@ async function refreshData(){ if($("refreshBtn")){ $("refreshBtn").classList.add
 async function load() {
   if (!live() && PREVIEW) { all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode."; return; }
   try {
-    listCursor = null; listLoading = true; listDone = false; storageLoadedBytes = 0; all = []; trashItems = []; favs = new Set();
-    const r = await api("list", { limit: 36, includeTrash: false });
+    listCursor = null; listLoading = true; listDone = false; storageLoadedBytes = 0; all = []; trashItems = []; favs = new Set(); renderLimit = 300;
+    const r = await api("list", { limit: 180, includeTrash: false });
     all = r.items || [];
     listCursor = r.nextCursor || null;
     listDone = !listCursor;
@@ -352,6 +352,7 @@ async function load() {
     apply();
     if (listDone) updateStorage(storageLoadedBytes);
     scheduleViewerWarmup();
+    if (!listDone) setTimeout(loadRemainingPages, 0);
   } catch (e) {
     if (e.message === "locked" || e.message === "setup_required") return;
     if (e.message === "storage_not_configured" || e.message === "storage_unreachable") { $("g").innerHTML = `<p class="empty">${e.reason || "Cloud storage is not available. Check the R2 configuration in Vercel."}</p>`; return; }
@@ -433,12 +434,12 @@ async function show(i){
 }
 const close = () => { viewerRequestId++; $("v").hidden = true; $("m").innerHTML = ""; if (cat === "fav") apply(); };
 let loadMoreObserver = null;
-async function loadNextPage() {
+async function loadNextPage(silent=false) {
   if (listLoading || listDone) return;
   listLoading = true;
   try {
     const previousLimit = renderLimit;
-    const r = await api("list", { cursor: listCursor, limit: 36 });
+    const r = await api("list", { cursor: listCursor, limit: 180 });
     if (r.items?.length) all = all.concat(r.items);
     listCursor = r.nextCursor || null;
     listDone = !listCursor;
@@ -446,14 +447,33 @@ async function loadNextPage() {
     if (r.trash?.length) trashItems = r.trash;
     if (Array.isArray(r.favs)) favs = new Set(r.favs);
     apply();
-    renderLimit = Math.min(items.length, Math.max(300, previousLimit + 300));
+    renderLimit = Math.min(items.length, Math.max(300, previousLimit + 180));
     draw();
+    if (!$("timelineView").hidden) {
+      const top = $("timelineView").scrollTop;
+      timelinePositionKey = "";
+      renderDedicatedTimeline();
+      $("timelineView").scrollTop = top;
+      requestAnimationFrame(syncTimelinePosition);
+    }
     if (listDone) updateStorage(storageLoadedBytes);
   } catch (e) {
     if (e.message === "locked") return;
-    toast("Unable to load more memories. Please try again.");
+    if (!silent) toast("Unable to load more memories. Please try again.");
   } finally {
     listLoading = false;
+  }
+}
+async function loadRemainingPages() {
+  if (listDone || listLoading) return;
+  while (!listDone) {
+    await loadNextPage(true);
+    if (!listDone) {
+      await new Promise(function(resolve){
+        if (window.requestIdleCallback) requestIdleCallback(resolve,{timeout:1000});
+        else setTimeout(resolve,0);
+      });
+    }
   }
 }
 function observeMore() {
@@ -467,15 +487,19 @@ function observeMore() {
   loadMoreObserver.observe(sentinel);
 }
 
-$("g").addEventListener("error", async e => {
-  const img = e.target;
+async function repairMediaImage(img) {
   if (!(img instanceof HTMLImageElement) || !img.dataset.key || img.dataset.fallback) return;
   img.dataset.fallback = "1";
   try {
     const r = await api("resolve", { key: img.dataset.key });
-    img.src = r.url;
+    if (r.url) {
+      img.src = r.url;
+      img.removeAttribute("data-src");
+    }
   } catch {}
-}, true);
+}
+$("g").addEventListener("error", e => repairMediaImage(e.target), true);
+$("timelineView").addEventListener("error", e => repairMediaImage(e.target), true);
 
 $("g").onclick = e => {
   const hv = e.target.closest(".hv");
