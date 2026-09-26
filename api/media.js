@@ -228,7 +228,7 @@ module.exports = async (req, res) => {
     if (req.query.action === "list") {
       // Paginate only the media namespace. R2 ListObjectsV2 supports opaque continuation
       // tokens, so the client can request the next page without rescanning the whole bucket.
-      const pageSize = Math.max(50, Math.min(300, Number(req.query.limit) || 300));
+      const pageSize = Math.max(60, Math.min(180, Number(req.query.limit) || 120));
       const cursor = typeof b.cursor === "string" && b.cursor.length <= 2048 ? b.cursor : undefined;
       const r = await s3.send(new ListObjectsV2Command({
         Bucket, Prefix: "media/", ContinuationToken: cursor, MaxKeys: pageSize
@@ -239,27 +239,24 @@ module.exports = async (req, res) => {
       const itemResults = await each(mediaObjects, async (o) => {
         const base = o.Key.slice(6), tk = `thumbs/${base}.jpg`;
         const type = kindOf(base);
-        // Probe the thumbnail and browser-compatible video copy without rescanning the bucket.
-        let thumb = null, playKey = o.Key, compatible = false;
-        try { await s3.send(new HeadObjectCommand({ Bucket, Key: tk })); thumb = await sign(tk); } catch {}
-        if (type === "video") {
-          for (const candidate of [`compatible-v2/${base}.mp4`, `compatible/${base}.mp4`]) {
-            try { await s3.send(new HeadObjectCommand({ Bucket, Key: candidate })); playKey = candidate; compatible = true; break; } catch {}
-          }
-        }
+        // Presign the expected thumbnail without a per-item HEAD request. Missing legacy thumbnails
+        // fall back to the original only when the browser reports the thumbnail failed to load.
+        const thumb = await sign(tk);
+        // Video compatibility is resolved only when the user opens the video.
+        const playKey = null, compatible = false;
         return {
           key: o.Key,
           playKey,
           size: Number(o.Size) || 0,
           date: (base.startsWith("other-") ? Number(base.split("-")[1]) : Number(base.split("-")[0])) || 0,
           type,
-          url: type === "video" ? null : (thumb ? null : await sign(o.Key)),
+          url: null,
           sourceUrl: null,
           thumb,
           compatible,
           timeline: base.startsWith("other-") ? "other" : "date"
         };
-      }, 8);
+      }, 20);
       const items = itemResults.filter(Boolean);
       items.sort((x, y) => y.date - x.date);
 
@@ -363,17 +360,25 @@ module.exports = async (req, res) => {
     }
     if (req.query.action === "resolve") {
       const key = String(b.key || "");
-      const playKey = String(b.playKey || key);
+      const requestedPlayKey = String(b.playKey || "");
       const base = key.slice(6);
-      const validMedia = key.startsWith("media/") && /^[\w.-]+$/.test(base);
-      const validPlay = playKey === key || playKey === "compatible-v2/" + base + ".mp4" || playKey === "compatible/" + base + ".mp4";
+      const validMedia = key.startsWith("media/") && /^[\\w.-]+$/.test(base);
+      const validPlay = !requestedPlayKey || requestedPlayKey === key || requestedPlayKey === "compatible-v2/" + base + ".mp4" || requestedPlayKey === "compatible/" + base + ".mp4";
       if (!validMedia || !validPlay) return res.status(400).json({ error: "bad key" });
-      const type = /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image";
-      const [url, sourceUrl] = await Promise.all([
-        sign(playKey),
-        type === "video" ? sign(key) : Promise.resolve(null)
-      ]);
-      return res.json({ url, sourceUrl });
+      const type = /\\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image";
+      if (type === "image") return res.json({ url: await sign(key), sourceUrl: null });
+      let playKey = key;
+      let compatible = false;
+      for (const candidate of [`compatible-v2/${base}.mp4`, `compatible/${base}.mp4`]) {
+        try {
+          await s3.send(new HeadObjectCommand({ Bucket, Key: candidate }));
+          playKey = candidate;
+          compatible = true;
+          break;
+        } catch {}
+      }
+      const [url, sourceUrl] = await Promise.all([sign(playKey), sign(key)]);
+      return res.json({ url, sourceUrl, playKey, compatible });
     }
     if (req.query.action === "cleanupUpload") {
       const key = String(b.key || ""), token = String(b.uploadToken || "");
