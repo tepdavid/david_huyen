@@ -314,14 +314,33 @@ const yi = y => ICONS[(y * 11 + 2) % ICONS.length];
 const mname = (y, m, long) => new Date(y, m, 1).toLocaleDateString(undefined, long ? { month: "long", year: "numeric" } : { month: "short" });
 const mlong = (y, m) => new Date(y, m, 1).toLocaleDateString(undefined, { month: "long" });
 
+const countLabel = list => list.length + (list.length === 1 ? " memory" : " memories");
+
 let renderLimit = 300;
 function draw() {
   $("n").textContent=all.length+(all.length===1?" memory":" memories");
-  const what=cat==="video"?"videos":cat==="fav"?"favorites":cat==="other"?"other memories":"memories";
   const visible=items.slice(0,renderLimit);
-  let h=visible.length?'':'<p class="empty">'+(cat==="fav"?"No favorites yet. Tap the ♡ on any photo or video.":cat==="other"?"No other memories yet.":'Nothing here yet. Tap + to add photos and videos.')+"</p>";
-  if(visible.length)h+='<div class="grid">'+visible.map(function(it,i){return tile(i);}).join("")+'</div>';
-  if(renderLimit<items.length)h+='<div id="loadMoreSentinel" style="height:1px;margin:1px 0" aria-hidden="true"></div>';
+  let h="";
+  if(!visible.length){
+    h='<p class="empty">'+(cat==="fav"?"No favorites yet. Tap the ♡ on any photo or video.":cat==="other"?"No other memories yet.":"Nothing here yet. Tap + to add photos and videos.")+"</p>";
+  }else{
+    const years={};
+    visible.forEach(function(it,i){
+      const d=new Date(it.date),y=d.getFullYear(),m=d.getMonth();
+      if(!years[y]) years[y]={};
+      if(!years[y][m]) years[y][m]=[];
+      years[y][m].push(i);
+    });
+    Object.keys(years).sort(function(x,y){return Number(y)-Number(x);}).forEach(function(y){
+      h+='<section class="homeYear"><h2 class="homeYearTitle">'+yi(+y)+' '+y+'</h2>';
+      Object.keys(years[y]).sort(function(x,z){return Number(z)-Number(x);}).forEach(function(m){
+        const ids=years[y][m];
+        h+='<div class="homeMonth"><div class="homeMonthTitle"><span>'+mi(+y,+m)+' '+mlong(+y,+m)+'</span><small>'+countLabel(ids)+'</small></div><div class="grid">'+ids.map(function(i){return tile(i);}).join("")+'</div></div>';
+      });
+      h+='</section>';
+    });
+  }
+  if(!listDone)h+='<div id="loadMoreSentinel" style="height:1px;margin:1px 0" aria-hidden="true"></div>';
   $("g").innerHTML=h;
   armLazyMedia($("g"));
   observeMore();
@@ -929,7 +948,7 @@ years.forEach(function(y){
       body+="<div class=\"grid\">";
       list.forEach(function(it){
         const src=it.thumb||(it.type==="image"?it.url:""),key=String(it.key).replace(/&/g,"&amp;").replace(/"/g,"&quot;");
-        body+="<button class=\"tile timelineTile"+(sel.has(it.key)?" sel":"")+"\" data-key=\""+key+"\" aria-label=\"Open "+it.type+" from "+fmt(it.date)+"\">"+(src?"<img loading=\"lazy\" decoding=\"async\" src=\""+BLANK_PIXEL+"\" data-src=\""+src+"\" alt=\"\">":"")+(it.type==="video"?"<b>▶</b>":"")+"<span class=\"dateBadge\">"+new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})+"</span><i class=\"hv"+(favs.has(it.key)?" on":"")+"\">"+(favs.has(it.key)?"♥":"♡")+"</i><i class=\"ck\">✓</i></button>";
+        body+="<button class=\"tile timelineTile"+(sel.has(it.key)?" sel":"")+"\" data-key=\""+key+"\" aria-label=\"Open "+it.type+" from "+fmt(it.date)+"\">"+(src?"<img loading=\"lazy\" decoding=\"async\" data-key=\""+key+"\" src=\""+BLANK_PIXEL+"\" data-src=\""+src+"\" alt=\"\">":"")+(it.type==="video"?"<b>▶</b>":"")+"<span class=\"dateBadge\">"+new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})+"</span><i class=\"hv"+(favs.has(it.key)?" on":"")+"\">"+(favs.has(it.key)?"♥":"♡")+"</i><i class=\"ck\">✓</i></button>";
       });
       body+="</div>";
     }else{
