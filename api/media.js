@@ -219,23 +219,36 @@ module.exports = async (req, res) => {
     if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
 
     if (req.query.action === "check") { // reports which settings are missing and whether storage is reachable
-      let storage = configProblem() || "ok";
-      if (storage === "ok") { try { await s3.send(new ListObjectsV2Command({ Bucket, MaxKeys: 1 })); } catch { storage = "unreachable"; } }
+      let storage = configProblem() || "ok", mediaCount = null;
+      if (storage === "ok") {
+        try {
+          const r = await s3.send(new ListObjectsV2Command({ Bucket, Prefix: "media/", MaxKeys: 1 }));
+          mediaCount = Number(r.KeyCount) || 0;
+        } catch { storage = "unreachable"; }
+      }
       return res.json({ configured: {
         telegram: !!R("BOT_TOKEN") && (E.ALLOWED_USER_IDS || "").split(",").some(s => s.trim()),
         storage: !!(R("R2_ACCOUNT_ID") && R("R2_ACCESS_KEY_ID") && R("R2_SECRET_ACCESS_KEY") && R("R2_BUCKET")),
         browserPin: /^\d{4}$/.test(R("ALBUM_PIN"))
-      }, storage });
+      }, storage, mediaCount });
     }
 
     if (req.query.action === "list") {
       // Paginate only the media namespace. R2 ListObjectsV2 supports opaque continuation
       // tokens, so the client can request the next page without rescanning the whole bucket.
+      const storageProblem = configProblem();
+      if (storageProblem) return res.status(503).json({ error: "storage_not_configured", reason: storageProblem });
       const pageSize = Math.max(60, Math.min(180, Number(req.query.limit) || 120));
       const cursor = typeof b.cursor === "string" && b.cursor.length <= 2048 ? b.cursor : undefined;
-      const r = await s3.send(new ListObjectsV2Command({
-        Bucket, Prefix: "media/", ContinuationToken: cursor, MaxKeys: pageSize
-      }));
+      let r;
+      try {
+        r = await s3.send(new ListObjectsV2Command({
+          Bucket, Prefix: "media/", ContinuationToken: cursor, MaxKeys: pageSize
+        }));
+      } catch (e) {
+        console.error("R2 media listing failed", e && e.stack || e);
+        return res.status(503).json({ error: "storage_unreachable", reason: "R2 bucket could not be listed. Check the R2 credentials, bucket name, and token permissions." });
+      }
       const mediaObjects = (r.Contents || []).filter(o => o && typeof o.Key === "string" && o.Key.length > 6);
 
       const kindOf = (base) => (/\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image");
