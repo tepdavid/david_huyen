@@ -210,7 +210,7 @@ const $ = id => document.getElementById(id);
 const live = () => tg && tg.initData;
 const serverMode = () => live() || !PREVIEW;
 const browser = () => !live();
-let all = [], items = [], idx = 0, tt, cat = "image", lastCat = "image", session = "", favs = new Set(), catalogStats = { images: 0, videos: 0, other: 0, favorites: 0 };
+let all = [], items = [], idx = 0, tt, cat = "all", lastCat = "all", session = "", favs = new Set(), catalogStats = { images: 0, videos: 0, other: 0, favorites: 0 };
 let sortMode = localStorage.getItem("memorySort") || "newest", query = "", themeMode = localStorage.getItem("memoryTheme") || "auto";
 $("t").textContent = TITLE; $("sub").textContent = SUBTITLE;
 function applyTheme(){ if(themeMode === "auto") document.documentElement.removeAttribute("data-theme"); else document.documentElement.dataset.theme=themeMode; $("themeBtn").textContent=themeMode==="dark"?"☾":themeMode==="light"?"☀":"◐"; }
@@ -223,6 +223,7 @@ const api = async (action, body) => {
   if (!r.ok) {
     let j = {}; try { j = await r.json(); } catch {}
     if (r.status === 401 && j.reason === "locked") { session = ""; showLock(); throw new Error("locked"); }
+    if (r.status === 503 && j.error === "browser_password_not_configured") { session = ""; showLock("Browser passcode is not configured. Set ALBUM_PIN in Vercel."); throw new Error("setup_required"); }
     const e = new Error(String(r.status)); e.reason = j.reason; e.age = j.age; throw e;
   }
   return r.json();
@@ -443,7 +444,7 @@ async function load() {
     apply();
     if (listDone) updateStorage(storageLoadedBytes);
   } catch (e) {
-    if (e.message === "locked") return;
+    if (e.message === "locked" || e.message === "setup_required") return;
     $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Unable to load your memories. Close and reopen the app to try again."}</p>`;
   } finally { listLoading = false; }
 }
