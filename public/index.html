@@ -21,7 +21,7 @@ h1{font:italic 700 30px Georgia,"Times New Roman",serif;color:var(--acc)}
 #n{color:var(--mute);font-size:13px}
 h2{font:600 14px Georgia,serif;color:var(--mute);padding:18px 18px 8px}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:3px;padding:0 3px}
-.tile{position:relative;aspect-ratio:1;background:var(--card);overflow:hidden}
+.tile{position:relative;aspect-ratio:1;background:var(--card);overflow:hidden;content-visibility:auto;contain-intrinsic-size:240px 240px}
 .tile img,.tileVid{width:100%;height:100%;object-fit:cover;display:block;background:#111}.tileVid{pointer-events:none}
 .tile b{position:absolute;right:6px;bottom:4px;color:#fff;text-shadow:0 1px 4px #000a;font-size:14px}
 .empty,#st{color:var(--mute);text-align:center;padding:40px 24px}
@@ -280,7 +280,8 @@ $("seg").onclick = e => { const b = e.target.closest("button"); if (!b) return; 
 
 const tile = i => {
   const it = items[i], src = it.thumb || (it.type === "image" ? it.url : "");
-  return `<button class="tile" data-i="${i}" aria-label="Open ${it.type} from ${fmt(it.date)}">${src ? `<img loading="lazy" src="${src}" alt="">` : it.type === "video" && it.url ? `<video class="tileVid" src="${it.url}" muted playsinline preload="metadata"></video>` : ""}${it.type === "video" ? "<b>▶</b>" : ""}<span class="dateBadge">${new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span><i class="ck">✓</i><i class="hv${favs.has(it.key) ? " on" : ""}" aria-hidden="true">${favs.has(it.key) ? "♥" : "♡"}</i></button>`;
+  const priority = i < 12 ? "high" : "low";
+  return `<button class="tile" data-i="${i}" aria-label="Open ${it.type} from ${fmt(it.date)}">${src ? `<img loading="lazy" decoding="async" fetchpriority="${priority}" data-key="${it.key}" src="${src}" alt="">` : it.type === "video" && it.url ? `<video class="tileVid" src="${it.url}" muted playsinline preload="metadata"></video>` : ""}${it.type === "video" ? "<b>▶</b>" : ""}<span class="dateBadge">${new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span><i class="ck">✓</i><i class="hv${favs.has(it.key) ? " on" : ""}" aria-hidden="true">${favs.has(it.key) ? "♥" : "♡"}</i></button>`;
 };
 
 // Timeline: every month of every year is shown, whether or not it has memories yet
@@ -432,7 +433,7 @@ async function load() {
   if (!live() && PREVIEW) { all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode."; return; }
   try {
     listCursor = null; listLoading = true; listDone = false; storageLoadedBytes = 0; all = []; trashItems = []; favs = new Set();
-    const r = await api("list", {});
+    const r = await api("list", { limit: 120 });
     all = r.items || [];
     listCursor = r.nextCursor || null;
     listDone = !listCursor;
@@ -455,6 +456,8 @@ async function show(i) {
       const r = await api("resolve", { key: it.key, playKey: it.playKey || it.key });
       it.url = r.url;
       if (r.sourceUrl) it.sourceUrl = r.sourceUrl;
+      if (r.playKey) it.playKey = r.playKey;
+      if (typeof r.compatible === "boolean") it.compatible = r.compatible;
     }
     if (it.type === "video" && !it.url.startsWith("data:")) {
       const poster = it.thumb ? ` poster="${it.thumb}"` : "";
@@ -482,7 +485,7 @@ async function loadNextPage() {
   listLoading = true;
   try {
     const previousLimit = renderLimit;
-    const r = await api("list", { cursor: listCursor });
+    const r = await api("list", { cursor: listCursor, limit: 120 });
     if (r.items?.length) all = all.concat(r.items);
     listCursor = r.nextCursor || null;
     listDone = !listCursor;
@@ -510,6 +513,16 @@ function observeMore() {
   }, { rootMargin: "900px 0px" });
   loadMoreObserver.observe(sentinel);
 }
+
+$("g").addEventListener("error", async e => {
+  const img = e.target;
+  if (!(img instanceof HTMLImageElement) || !img.dataset.key || img.dataset.fallback) return;
+  img.dataset.fallback = "1";
+  try {
+    const r = await api("resolve", { key: img.dataset.key });
+    img.src = r.url;
+  } catch {}
+}, true);
 
 $("g").onclick = e => {
   const hv = e.target.closest(".hv");
