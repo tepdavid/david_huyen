@@ -224,6 +224,7 @@ const api = async (action, body) => {
     let j = {}; try { j = await r.json(); } catch {}
     if (r.status === 401 && j.reason === "locked") { session = ""; showLock(); throw new Error("locked"); }
     if (r.status === 503 && j.error === "browser_password_not_configured") { session = ""; showLock("Browser passcode is not configured. Set ALBUM_PIN in Vercel."); throw new Error("setup_required"); }
+    if (r.status === 503 && (j.error === "storage_not_configured" || j.error === "storage_unreachable")) { const e = new Error(j.error); e.reason = j.reason; throw e; }
     const e = new Error(String(r.status)); e.reason = j.reason; e.age = j.age; throw e;
   }
   return r.json();
@@ -445,6 +446,7 @@ async function load() {
     if (listDone) updateStorage(storageLoadedBytes);
   } catch (e) {
     if (e.message === "locked" || e.message === "setup_required") return;
+    if (e.message === "storage_not_configured" || e.message === "storage_unreachable") { $("g").innerHTML = `<p class="empty">${e.reason || "Cloud storage is not available. Check the R2 configuration in Vercel."}</p>`; return; }
     $("g").innerHTML = `<p class="empty">${["401","403"].includes(e.message) ? await why(e) : "Unable to load your memories. Close and reopen the app to try again."}</p>`;
   } finally { listLoading = false; }
 }
