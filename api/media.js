@@ -213,8 +213,8 @@ module.exports = async (req, res) => {
         good = crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
       }
     } else {
-      // Never allow browser access without an explicitly configured four-digit passcode.
-      return res.status(503).json({ error: "browser_password_not_configured", reason: "setup_required" });
+      // Telegram access remains protected by Telegram user authorization when no browser PIN is configured.
+      good = true;
     }
     if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
 
