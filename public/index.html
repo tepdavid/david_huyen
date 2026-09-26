@@ -285,7 +285,7 @@ const BLANK_PIXEL="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAA
 let lazyMediaObserver=null;
 function armLazyMedia(root){
   if(lazyMediaObserver)lazyMediaObserver.disconnect();
-  const scope=root||document,imgs=scope.querySelectorAll("img[data-src");
+  const scope=root||document,imgs=scope.querySelectorAll("img[data-src]");
   if(!imgs.length)return;
   lazyMediaObserver=new IntersectionObserver(entries=>{
     entries.forEach(entry=>{
@@ -300,7 +300,7 @@ function armLazyMedia(root){
 const tile = i => {
   const it=items[i],src=it.thumb||(it.type==="image"?it.url:""),priority=i<6?"high":"low";
   const media=src ? '<img loading="lazy" decoding="async" fetchpriority="'+priority+'" data-key="'+it.key+'" src="'+(i<6?src:BLANK_PIXEL)+'"'+(i<6?"":' data-src="'+src+'"')+' alt="">' : "";
-  return '<button class="tile" data-i="'+i+'" aria-label="Open '+it.type+" from "+fmt(it.date)+'">'+media+(it.type==="video"?"<b>▶</b>":"")+'<span class="dateBadge">'+new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})+'</span><i class="ck">✓</i><i class="hv'+(favs.has(it.key)?" on":"")+"" aria-hidden="true">"+(favs.has(it.key)?"♥":"♡")+"</i></button>";
+  return '<button class="tile" data-i="'+i+'" aria-label="Open '+it.type+' from '+fmt(it.date)+'">'+media+(it.type==="video"?"<b>▶</b>":"")+'<span class="dateBadge">'+new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})+'</span><i class="ck">✓</i><i class="hv'+(favs.has(it.key)?" on":"")+'" aria-hidden="true">'+(favs.has(it.key)?"♥":"♡")+'</i></button>';
 }
 
 // Timeline: every month of every year is shown, whether or not it has memories yet
