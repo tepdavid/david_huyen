@@ -154,7 +154,7 @@ header h1{font-size:30px;letter-spacing:.1px}
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
 <header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span><span id="storage"></span></header>
-<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="favBtn">♥ Favorite</button><button id="otherBtn">Others</button><button id="searchBtn" class="icon" aria-label="Search" title="Search">⌕</button><div class="sortbox"><button id="sortBtn" class="icon" aria-label="Sort" title="Sort">↕</button><div id="sortMenu" class="sortmenu"><button data-sort="newest" class="on">Newest first</button><button data-sort="oldest">Oldest first</button><button data-sort="moments">Smart moments</button></div></div><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div><div class="search" id="search"><input id="searchInput" type="search" placeholder="Search memories…" autocomplete="off"><button id="searchClear" aria-label="Clear search">✕</button></div></div></div>
+<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="otherBtn">Others</button><button id="searchBtn" class="icon" aria-label="Search" title="Search">⌕</button><div class="sortbox"><button id="sortBtn" class="icon" aria-label="Sort" title="Sort">↕</button><div id="sortMenu" class="sortmenu"><button data-sort="newest" class="on">Newest first</button><button data-sort="oldest">Oldest first</button><button data-sort="moments">Smart moments</button></div></div><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div><div class="search" id="search"><input id="searchInput" type="search" placeholder="Search memories…" autocomplete="off"><button id="searchClear" aria-label="Clear search">✕</button></div></div></div>
 <nav class="appnav" id="appnav" aria-label="Main navigation">
   <button data-nav="home" class="on"><b>⌂</b><span>Home</span></button>
   <button data-nav="fav"><b>♥</b><span>Favorites</span></button>
@@ -876,7 +876,7 @@ document.addEventListener("visibilitychange", () => { if (document.hidden) hidde
 const favIcon = () => { const on = favs.has(items[idx].key); $("fv").textContent = on ? "♥" : "♡"; $("fv").classList.toggle("on", on); };
 const favLabel = () => {
   const n = catalogStats.favorites;
-  $("favBtn").textContent = "♥ Favorite" + (n ? ` (${n})` : ""); $("favBtn").classList.toggle("on", cat === "fav");
+  
   $("otherBtn").textContent = "Others" + (catalogStats.other ? ` (${catalogStats.other})` : ""); $("otherBtn").classList.toggle("on", cat === "other");
 };
 function paintFavs() {
