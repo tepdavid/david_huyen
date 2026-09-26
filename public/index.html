@@ -615,7 +615,7 @@ $("m").ontouchstart = e => sx = e.touches[0].clientX;
 $("m").ontouchend = e => { const d = e.changedTouches[0].clientX - sx; if (Math.abs(d) > 60) show(idx + (d < 0 ? 1 : -1)); };
 $("del").onclick = async () => {
   if (!await ask("Move this memory to Recently deleted? It disappears for both of you and is kept for 30 days.")) return;
-  try { await act("delete", [items[idx].key]); close(); toast("Moved to Recently deleted"); await refresh(); if (!$("timelineView").hidden) { renderDedicatedTimeline(); requestAnimationFrame(syncTimelinePosition); } } catch { toast("Couldn't delete. Try again."); }
+  try { await act("delete", [items[idx].key]); close(); toast("Moved to Recently deleted"); await refresh(); if (!$("timelineView").hidden) { renderDedicatedTimeline(); requestAnimationFrame(syncTimelinePosition); } if (!$("tr").hidden) await loadTrash(); } catch { toast("Couldn't delete. Try again."); }
 };
 
 function makeThumb(f) {
@@ -884,6 +884,16 @@ $("selDel").onclick = async () => {
 };
 
 const daysLeft = i => Math.max(1, Math.ceil((i.deletedAt + 30 * 864e5 - Date.now()) / 864e5));
+async function loadTrash(){
+  try{
+    const r=await api("list",{limit:1,includeTrash:true});
+    trashItems=r.trash||[];
+    tsel.clear();
+    drawTrash();
+  }catch{
+    toast("Couldn't load Recently deleted. Try again.");
+  }
+}
 function drawTrash() {
   $("trNote").textContent = trashItems.length ? "Items are erased for good after 30 days. Tap to select." : "Nothing here. Deleted items are kept for 30 days.";
   $("trG").innerHTML = trashItems.map((it, i) => {
@@ -1035,7 +1045,7 @@ $("appnav").onclick=async e=>{
   if(name==="home"){ if(selecting)setSel(false); $("timelineView").hidden=true; cat="all"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
   else if(name==="fav"){ if(selecting)setSel(false); $("timelineView").hidden=true; cat="fav"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
   else if(name==="other"){ if(selecting)setSel(false); $("timelineView").hidden=true; cat="other"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
-  else if(name==="trash"){ if(selecting)setSel(false); $("timelineView").hidden=true; tsel.clear(); drawTrash(); $("tr").hidden=false; setNavActive(name); }
+  else if(name==="trash"){ if(selecting)setSel(false); $("timelineView").hidden=true; $("tr").hidden=false; setNavActive(name); await loadTrash(); }
   else if(name==="timeline"){
     openTimeline();
   }
