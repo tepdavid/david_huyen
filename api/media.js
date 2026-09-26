@@ -383,18 +383,23 @@ module.exports = async (req, res) => {
       if (!validMedia || !validPlay) return res.status(400).json({ error: "bad key" });
       const type = /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image";
       if (type === "image") return res.json({ url: await sign(key), sourceUrl: null });
-      let playKey = key;
-      let compatible = false;
-      for (const candidate of [`compatible-v2/${base}.mp4`, `compatible/${base}.mp4`]) {
-        try {
-          await s3.send(new HeadObjectCommand({ Bucket, Key: candidate }));
-          playKey = candidate;
-          compatible = true;
-          break;
-        } catch {}
+      const fallback = !!b.fallback;
+      let playKey = `compatible-v2/${base}.mp4`;
+      let compatible = true;
+      if (fallback) {
+        playKey = key;
+        compatible = false;
+        for (const candidate of [`compatible-v2/${base}.mp4`, `compatible/${base}.mp4`]) {
+          try {
+            await s3.send(new HeadObjectCommand({ Bucket, Key: candidate }));
+            playKey = candidate;
+            compatible = true;
+            break;
+          } catch {}
+        }
       }
       const [url, sourceUrl] = await Promise.all([sign(playKey), sign(key)]);
-      return res.json({ url, sourceUrl, playKey, compatible });
+      return res.json({ url, sourceUrl, playKey, compatible, fast: !fallback });
     }
     if (req.query.action === "cleanupUpload") {
       const key = String(b.key || ""), token = String(b.uploadToken || "");
