@@ -281,11 +281,27 @@ function apply() {
 }
 $("seg").onclick = e => { const b = e.target.closest("button"); if (!b) return; cat = b.dataset.c; apply(); scrollTo(0, 0); };
 
+const BLANK_PIXEL="data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///ywAAAAAAQABAAACAUwAOw==";
+let lazyMediaObserver=null;
+function armLazyMedia(root){
+  if(lazyMediaObserver)lazyMediaObserver.disconnect();
+  const scope=root||document,imgs=scope.querySelectorAll("img[data-src");
+  if(!imgs.length)return;
+  lazyMediaObserver=new IntersectionObserver(entries=>{
+    entries.forEach(entry=>{
+      if(!entry.isIntersecting)return;
+      const img=entry.target,src=img.dataset.src;
+      if(src){img.src=src;img.removeAttribute("data-src");}
+      lazyMediaObserver.unobserve(img);
+    });
+  },{root:root||null,rootMargin:"450px 0px"});
+  imgs.forEach(img=>lazyMediaObserver.observe(img));
+}
 const tile = i => {
-  const it = items[i], src = it.thumb || (it.type === "image" ? it.url : "");
-  const priority = i < 4 ? "high" : "low";
-  return `<button class="tile" data-i="${i}" aria-label="Open ${it.type} from ${fmt(it.date)}">${src ? `<img loading="lazy" decoding="async" fetchpriority="${priority}" data-key="${it.key}" src="${src}" alt="">` : it.type === "video" && it.url ? `<video class="tileVid" src="${it.url}" muted playsinline preload="metadata"></video>` : ""}${it.type === "video" ? "<b>▶</b>" : ""}<span class="dateBadge">${new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})}</span><i class="ck">✓</i><i class="hv${favs.has(it.key) ? " on" : ""}" aria-hidden="true">${favs.has(it.key) ? "♥" : "♡"}</i></button>`;
-};
+  const it=items[i],src=it.thumb||(it.type==="image"?it.url:""),priority=i<6?"high":"low";
+  const media=src ? '<img loading="lazy" decoding="async" fetchpriority="'+priority+'" data-key="'+it.key+'" src="'+(i<6?src:BLANK_PIXEL)+'"'+(i<6?"":' data-src="'+src+'"')+' alt="">' : "";
+  return '<button class="tile" data-i="'+i+'" aria-label="Open '+it.type+" from "+fmt(it.date)+'">'+media+(it.type==="video"?"<b>▶</b>":"")+'<span class="dateBadge">'+new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})+'</span><i class="ck">✓</i><i class="hv'+(favs.has(it.key)?" on":"")+"" aria-hidden="true">"+(favs.has(it.key)?"♥":"♡")+"</i></button>";
+}
 
 // Timeline: every month of every year is shown, whether or not it has memories yet
 let selY = null;
@@ -343,7 +359,7 @@ function draw() {
   });
   if(other.length){const oi=other.map(i=>items[i]);h+=`<h3 class="otherHead" id="other-section">📦 Others <small>${countLabel(oi)}</small></h3><div class="grid">${other.map(tile).join("")}</div>`;}
   if(renderLimit < items.length) h+=`<div id="loadMoreSentinel" style="height:1px;margin:1px 0" aria-hidden="true"></div>`;
-  $("g").innerHTML=h; timeline(); spy(); observeMore();
+  $("g").innerHTML=h; timeline(); spy(); armLazyMedia($("g")); observeMore();
 }
 
 function timeline() {
@@ -475,42 +491,63 @@ function warmViewerNeighbors(center){
   const uniq=[...new Map(candidates.filter(Boolean).map(x=>[x.key,x])).values()];
   return Promise.all(uniq.map(warmViewerItem));
 }
-async function show(i) {
-  idx = (i + items.length) % items.length;
-  const it = items[idx];
-  try {
-    if (!it.url) {
-      const r = await api("resolve", { key: it.key, playKey: it.playKey || it.key });
+let viewerRequestId=0;
+async function show(i){
+  idx=(i+items.length)%items.length;
+  const it=items[idx],rid=++viewerRequestId;
+  $("cap").textContent=fmt(it.date,{weekday:"long",day:"numeric",month:"long",year:"numeric"});
+  $("v").hidden=false;
+  favIcon();
+  if(it.type==="image"){
+    $("m").innerHTML=it.thumb?'<img src="'+it.thumb+'" alt="">':'<div class="vfail"><p>Loading photo…</p></div>';
+  }else{
+    const poster=it.thumb?' poster="'+it.thumb+'"':"";
+    $("m").innerHTML='<video'+poster+' controls playsinline preload="metadata"></video>';
+  }
+  try{
+    if(!it.url){
+      const r=await api("resolve",{key:it.key,playKey:it.playKey||it.key});
+      if(rid!==viewerRequestId)return;
       cacheResolved(it,r);
     }
-    if (it.type === "video" && !it.url.startsWith("data:")) {
-      const poster = it.thumb ? ` poster="${it.thumb}"` : "";
-      if (it.compatible) {
-        $("m").innerHTML = `<video src="${it.url}"${poster} controls playsinline preload="metadata" autoplay></video>`;
-        const v = $("m").querySelector("video");
-        v.addEventListener("error", () => {
-          $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video could not be played.</p><small>The browser-compatible video copy is unavailable. Please upload the video again.</small></div>`;
-        }, { once: true });
-      } else {
-        $("m").innerHTML = `<div class="vfail">${it.thumb ? `<img src="${it.thumb}" alt="">` : ""}<p>This video is not ready for playback.</p><small>Please upload this video again. No conversion is done while viewing.</small></div>`;
-      }
-    } else $("m").innerHTML = `<img src="${it.url}" alt="">`;
-    $("cap").textContent = fmt(it.date, { weekday: "long", day: "numeric", month: "long", year: "numeric" });
-    $("v").hidden = false;
-    favIcon();
+    if(rid!==viewerRequestId)return;
+    if(it.type==="video"){
+      const v=$("m").querySelector("video");
+      if(!v)return;
+      v.src=it.url;
+      v.dataset.fallbackTried="";
+      v.addEventListener("error",async()=>{
+        if(v.dataset.fallbackTried==="1")return;
+        v.dataset.fallbackTried="1";
+        try{
+          const r=await api("resolve",{key:it.key,playKey:it.playKey||it.key,fallback:true});
+          if(rid!==viewerRequestId)return;
+          cacheResolved(it,r);
+          v.src=it.url;
+          v.load();
+          await v.play().catch(()=>{});
+        }catch{
+          if(rid===viewerRequestId)$("m").innerHTML='<div class="vfail">'+(it.thumb?'<img src="'+it.thumb+'" alt="">':"")+'<p>This video could not be played.</p><small>The compatible video copy is unavailable. Please upload the video again.</small></div>';
+        }
+      },{once:false});
+      v.load();
+      await v.play().catch(()=>{});
+    }else{
+      $("m").innerHTML='<img src="'+it.url+'" alt="">';
+    }
     warmViewerNeighbors(idx);
-  } catch {
-    toast("Couldn't open this memory. Please try again.");
+  }catch{
+    if(rid===viewerRequestId)toast("Couldn’t open this memory. Please try again.");
   }
 }
-const close = () => { $("v").hidden = true; $("m").innerHTML = ""; if (cat === "fav") apply(); };
+const close = () => { viewerRequestId++; $("v").hidden = true; $("m").innerHTML = ""; if (cat === "fav") apply(); };
 let loadMoreObserver = null;
 async function loadNextPage() {
   if (listLoading || listDone) return;
   listLoading = true;
   try {
     const previousLimit = renderLimit;
-    const r = await api("list", { cursor: listCursor, limit: 48 });
+    const r = await api("list", { cursor: listCursor, limit: 36 });
     if (r.items?.length) all = all.concat(r.items);
     listCursor = r.nextCursor || null;
     listDone = !listCursor;
