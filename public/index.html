@@ -128,6 +128,14 @@ h1{font-size:32px;color:#fff}
 .tools{flex-wrap:wrap;justify-content:center}
 .tools button.on{background:var(--acc);color:var(--on);border-color:transparent}
 .search{display:none;margin:6px 0 0;gap:7px;align-items:center}.search.open{display:flex}.search input{flex:1;min-width:0;padding:10px 14px;border-radius:999px;border:1px solid var(--edge);background:var(--glass);color:var(--ink);outline:none}.search button{width:40px;height:40px;border-radius:50%;background:var(--glass);border:1px solid var(--edge)}.tools button.icon{padding:7px 11px;font-size:16px}.sortbox{position:relative}.sortmenu{position:absolute;right:0;top:46px;z-index:8;display:none;min-width:145px;padding:6px;border-radius:16px;background:color-mix(in srgb,var(--card) 88%,transparent);border:1px solid var(--edge);box-shadow:0 12px 30px #0003;-webkit-backdrop-filter:blur(24px);backdrop-filter:blur(24px)}.sortmenu.open{display:block}.sortmenu button{display:block;width:100%;text-align:left;padding:10px 12px;border-radius:11px}.sortmenu button.on{background:var(--acc);color:var(--on)}.refreshing{animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+
+/* Dedicated Timeline view */
+.timelineView{position:fixed;inset:0;z-index:20;overflow-y:auto;padding:calc(10px + var(--sat)) 0 calc(110px + env(safe-area-inset-bottom,0px));background:color-mix(in srgb,var(--bg) 94%,transparent);-webkit-backdrop-filter:blur(30px);backdrop-filter:blur(30px)}
+.timelineView[hidden]{display:none}.timelineHead{position:sticky;top:0;z-index:2;padding:10px 14px 12px;background:color-mix(in srgb,var(--bg) 78%,transparent);border-bottom:1px solid var(--edge);-webkit-backdrop-filter:blur(24px) saturate(180%);backdrop-filter:blur(24px) saturate(180%)}
+.timelineHeadRow{display:flex;align-items:center;justify-content:space-between;gap:10px}.timelineHead h2{padding:0;font:italic 700 25px Georgia,serif;color:var(--acc)}.timelineHead p{margin-top:2px;color:var(--mute);font-size:12px}.timelineClose{width:40px;height:40px;border-radius:50%;background:var(--glass);border:1px solid var(--edge);font-size:18px}
+.timelineYears{display:flex;gap:8px;overflow-x:auto;padding:10px 14px 4px;scrollbar-width:none}.timelineYears::-webkit-scrollbar{display:none}.timelineYear{flex:none;padding:9px 15px;border-radius:999px;background:var(--glass);border:1px solid var(--edge);color:var(--mute);font-weight:600}.timelineYear.on{background:var(--acc);color:var(--on);border-color:transparent}
+.timelineMonths{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;padding:8px 14px 12px}.timelineMonth{min-width:0;padding:9px 4px;border-radius:14px;background:var(--glass);border:1px solid var(--edge);color:var(--mute);font-size:11px;text-align:center}.timelineMonth.on{background:var(--acc);color:var(--on);border-color:transparent}.timelineMonth.empty{opacity:.42}
+.timelineBody{padding:0 0 20px}.timelineYearTitle{padding:18px 18px 7px;font:italic 700 27px Georgia,serif;color:var(--acc)}.timelineMonthTitle{display:flex;align-items:center;justify-content:space-between;padding:9px 18px 7px;font:600 14px Georgia,serif;color:var(--mute);scroll-margin-top:150px}.timelineMonthTitle small{font:11px system-ui,sans-serif;opacity:.72}.timelineEmpty{text-align:center;color:var(--mute);padding:30px 20px}.timelineLoad{display:block;margin:14px auto;padding:10px 18px;border-radius:999px;background:var(--acc);color:var(--on);font-weight:600}.timelineHint{text-align:center;color:var(--mute);font-size:11px;padding:8px 18px 0}@media(min-width:700px){.timelineMonths{grid-template-columns:repeat(6,minmax(0,1fr))}.timelineView{padding-bottom:100px}}
 .homehint{font-size:12px;color:var(--mute);text-align:center;padding:2px 18px 10px}.tile .dateBadge{position:absolute;left:7px;bottom:6px;padding:3px 6px;border-radius:999px;background:#0006;color:#fff;font-size:10px;backdrop-filter:blur(8px)}
 
 .hv{position:absolute;top:6px;right:6px;width:26px;height:26px;border-radius:50%;background:rgba(0,0,0,.35);color:#fff;font-style:normal;font-size:15px;line-height:26px;text-align:center;-webkit-backdrop-filter:blur(8px);backdrop-filter:blur(8px)}
@@ -162,7 +170,7 @@ header h1{font-size:30px;letter-spacing:.1px}
   <button data-nav="other"><b>▣</b><span>Others</span></button>
   <button data-nav="trash"><b>⌫</b><span>Deleted</span></button>
 </nav>
-<div id="st"></div><div id="homehint" class="homehint">Your memories are organized automatically by year and month.</div>
+<div id="st"></div><div id="homehint" class="homehint">Your memories are organized automatically by year and month.</div><div class="timelineView" id="timelineView" hidden><div class="timelineHead"><div class="timelineHeadRow"><div><h2>Timeline</h2><p id="timelineSummary">Your memories, year by year.</p></div><button class="timelineClose" id="timelineClose" aria-label="Close Timeline">✕</button></div><div class="timelineYears" id="timelineYears"></div><div class="timelineMonths" id="timelineMonths"></div></div><div class="timelineBody" id="timelineBody"></div></div>
 <main id="g"></main>
 <label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
 <div class="lock" id="out" hidden>
@@ -931,17 +939,36 @@ document.addEventListener("click",e=>{if(!e.target.closest(".sortbox"))$("sortMe
 document.querySelectorAll("#sortMenu button").forEach(b=>b.classList.toggle("on",b.dataset.sort===sortMode));
 
 
+function openTimeline(){cat="all";apply();$("timelineView").hidden=false;setNavActive("timeline");renderDedicatedTimeline();$("timelineView").scrollTop=0;}
+function closeTimeline(){$("timelineView").hidden=true;setNavActive("home");cat="all";apply();scrollTo({top:0,behavior:"smooth"});}
+function renderDedicatedTimeline(){
+const data=all.filter(function(it){return it.timeline!=="other";}),byYear={};
+data.forEach(function(it){const d=new Date(it.date),y=d.getFullYear(),m=d.getMonth();if(!byYear[y])byYear[y]={};if(!byYear[y][m])byYear[y][m]=[];byYear[y][m].push(it);});
+const years=Object.keys(byYear).map(Number).sort(function(a,b){return b-a;});
+$("timelineSummary").textContent=data.length?data.length+" "+(data.length===1?"memory":"memories")+" across "+years.length+" "+(years.length===1?"year":"years")+".":"No dated memories yet.";
+$("timelineYears").innerHTML=years.map(function(y,i){return "<button class=\"timelineYear "+(i===0?"on":"")+"\" data-ty=\""+y+"\">"+yi(y)+" "+y+"</button>";}).join("");
+const active=years[0];
+$("timelineMonths").innerHTML=active==null?"":Array.from({length:12},function(_,m){return "<button class=\"timelineMonth "+(byYear[active]&&byYear[active][m]?"":"empty")+"\" data-tm=\""+active+"-"+m+"\">"+mi(active,m)+"<br>"+mname(active,m)+"</button>";}).join("");
+let body="";
+years.forEach(function(y){body+="<section data-timeline-year=\""+y+"\"><h3 class=\"timelineYearTitle\">"+yi(y)+" "+y+"</h3>";for(let m=0;m<12;m++){const list=(byYear[y]&&byYear[y][m]||[]).sort(function(a,b){return b.date-a.date;});if(!list.length)continue;body+="<div class=\"timelineMonthBlock\"><h4 class=\"timelineMonthTitle\" id=\"timeline-"+y+"-"+m+"\"><span>"+mi(y,m)+" "+mlong(y,m)+"</span><small>"+countLabel(list)+"</small></h4><div class=\"grid\">";list.forEach(function(it){const src=it.thumb||(it.type==="image"?it.url:""),key=String(it.key).replace(/&/g,"&amp;").replace(/"/g,"&quot;");body+="<button class=\"tile timelineTile\" data-key=\""+key+"\" aria-label=\"Open "+it.type+" from "+fmt(it.date)+"\">"+(src?"<img loading=\"lazy\" decoding=\"async\" src=\""+src+"\" alt=\"\">":"")+(it.type==="video"?"<b>▶</b>":"")+"<span class=\"dateBadge\">"+new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})+"</span><i class=\"hv"+(favs.has(it.key)?" on":"")+"\">"+(favs.has(it.key)?"♥":"♡")+"</i></button>";});body+="</div></div>";}body+="</section>";});
+$("timelineBody").innerHTML=body||"<div class=\"timelineEmpty\">No dated memories yet.<br>Use <b>Others</b> for memories without a known date.</div>";
+if(!listDone)$("timelineBody").insertAdjacentHTML("beforeend","<button class=\"timelineLoad\" id=\"timelineLoad\">Load more memories</button>");
+$("timelineBody").insertAdjacentHTML("beforeend","<div class=\"timelineHint\">Timeline groups memories by the date stored with each file.</div>");
+}
+$("timelineClose").onclick=closeTimeline;
+$("timelineYears").onclick=function(e){const b=e.target.closest("[data-ty]");if(!b)return;const y=+b.dataset.ty;document.querySelectorAll(".timelineYear").forEach(function(x){x.classList.toggle("on",+x.dataset.ty===y);});$("timelineMonths").innerHTML=Array.from({length:12},function(_,m){const has=all.some(function(it){const d=new Date(it.date);return it.timeline!=="other"&&d.getFullYear()===y&&d.getMonth()===m;});return "<button class=\"timelineMonth "+(has?"":"empty")+"\" data-tm=\""+y+"-"+m+"\">"+mi(y,m)+"<br>"+mname(y,m)+"</button>";}).join("");const t=document.querySelector("[data-timeline-year=\""+y+"\"]");if(t)t.scrollIntoView({behavior:"smooth",block:"start"});};
+$("timelineMonths").onclick=function(e){const b=e.target.closest("[data-tm]");if(!b)return;const p=b.dataset.tm.split("-").map(Number),t=document.getElementById("timeline-"+p[0]+"-"+p[1]);document.querySelectorAll(".timelineMonth").forEach(function(x){x.classList.toggle("on",x===b);});if(t)t.scrollIntoView({behavior:"smooth",block:"start"});};
+$("timelineBody").onclick=function(e){if(e.target.id==="timelineLoad"){loadNextPage().then(renderDedicatedTimeline);return;}const hv=e.target.closest(".hv");if(hv){const key=hv.closest(".timelineTile").dataset.key;setFav([key],!favs.has(key));return;}const t=e.target.closest(".timelineTile");if(!t)return;const it=all.find(function(x){return x.key===t.dataset.key;});if(!it)return;items=all.filter(function(x){return x.timeline!=="other";});const i=items.findIndex(function(x){return x.key===it.key;});if(i>=0)show(i);};
 function setNavActive(name){ document.querySelectorAll("#appnav button").forEach(b=>b.classList.toggle("on",b.dataset.nav===name)); }
 $("appnav").onclick=async e=>{
   const b=e.target.closest("button[data-nav]"); if(!b) return;
   const name=b.dataset.nav;
   if(name==="home"){ cat="all"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
-  else if(name==="fav"){ cat="fav"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
-  else if(name==="other"){ cat="other"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
+  else if(name==="fav"){ $("timelineView").hidden=true; cat="fav"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
+  else if(name==="other"){ $("timelineView").hidden=true; cat="other"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
   else if(name==="trash"){ tsel.clear(); drawTrash(); $("tr").hidden=false; setNavActive(name); }
   else if(name==="timeline"){
-    setNavActive(name);
-    $("tl").scrollIntoView({behavior:"smooth",block:"center"});
+    openTimeline();
   }
 };
 load();
