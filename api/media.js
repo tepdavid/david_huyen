@@ -238,7 +238,7 @@ module.exports = async (req, res) => {
       // tokens, so the client can request the next page without rescanning the whole bucket.
       const storageProblem = configProblem();
       if (storageProblem) return res.status(503).json({ error: "storage_not_configured", reason: storageProblem });
-      const pageSize = Math.max(60, Math.min(180, Number(req.query.limit) || 120));
+      const pageSize = Math.max(48, Math.min(180, Number(req.query.limit) || 48));
       const cursor = typeof b.cursor === "string" && b.cursor.length <= 2048 ? b.cursor : undefined;
       let r;
       try {
