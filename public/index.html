@@ -451,7 +451,7 @@ async function load() {
   if (!live() && PREVIEW) { all = demo(); if (!favs.size) favs = new Set(["d0", "d2", "d5", "d7"]); apply(); if (!session) showLock("Preview: the passcode is 1234"); $("st").textContent = "Preview mode."; return; }
   try {
     listCursor = null; listLoading = true; listDone = false; storageLoadedBytes = 0; all = []; trashItems = []; favs = new Set();
-    const r = await api("list", { limit: 48 });
+    const r = await api("list", { limit: 36, includeTrash: false });
     all = r.items || [];
     listCursor = r.nextCursor || null;
     listDone = !listCursor;
