@@ -972,10 +972,10 @@ function setNavActive(name){ document.querySelectorAll("#appnav button").forEach
 $("appnav").onclick=async e=>{
   const b=e.target.closest("button[data-nav]"); if(!b) return;
   const name=b.dataset.nav;
-  if(name==="home"){ $("timelineView").hidden=true; cat="all"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
-  else if(name==="fav"){ $("timelineView").hidden=true; cat="fav"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
-  else if(name==="other"){ $("timelineView").hidden=true; cat="other"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
-  else if(name==="trash"){ $("timelineView").hidden=true; tsel.clear(); drawTrash(); $("tr").hidden=false; setNavActive(name); }
+  if(name==="home"){ if(selecting)setSel(false); $("timelineView").hidden=true; cat="all"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
+  else if(name==="fav"){ if(selecting)setSel(false); $("timelineView").hidden=true; cat="fav"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
+  else if(name==="other"){ if(selecting)setSel(false); $("timelineView").hidden=true; cat="other"; setNavActive(name); apply(); scrollTo({top:0,behavior:"smooth"}); }
+  else if(name==="trash"){ if(selecting)setSel(false); $("timelineView").hidden=true; tsel.clear(); drawTrash(); $("tr").hidden=false; setNavActive(name); }
   else if(name==="timeline"){
     openTimeline();
   }
