@@ -272,7 +272,6 @@ function apply() {
   calendarCache = null;
   $("allBtn").textContent = "All" + (all.length ? ` (${all.length})` : ""); $("allBtn").classList.toggle("on", cat === "all");
   favLabel();
-  $("trBtn").textContent = "Recently deleted" + (trashItems.length ? ` (${trashItems.length})` : "");
   document.querySelectorAll("#seg button").forEach(b => b.classList.toggle("on", b.dataset.c === cat));
   $("cp").textContent = images;
   $("cv").textContent = videos;
@@ -913,7 +912,6 @@ async function setFav(keys, on) {
 }
 $("fv").onclick = () => { const k = items[idx].key; setFav([k], !favs.has(k)); };
 $("allBtn").onclick = () => { cat = cat === "all" ? lastCat : "all"; setNavActive(cat === "all" ? "home" : ""); apply(); scrollTo(0, 0); };
-$("favBtn").onclick = () => { cat = cat === "fav" ? lastCat : "fav"; setNavActive(cat === "fav" ? "fav" : ""); apply(); scrollTo(0, 0); };
 $("selFav").onclick = async () => {
   if (!sel.size) return toast("Tap the photos you want to favorite");
   const keys = [...sel], on = !keys.every(k => favs.has(k));
