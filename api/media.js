@@ -276,6 +276,20 @@ module.exports = async (req, res) => {
       const items = itemResults.filter(Boolean);
       items.sort((x, y) => y.date - x.date);
 
+      // Pre-sign the first few newest memories so opening the first screen does not need
+      // an additional /resolve round trip. No R2 HEAD request is made here.
+      await Promise.all(items.slice(0, 8).map(async (item) => {
+        if (item.type === "image") {
+          item.url = await sign(item.key);
+          return;
+        }
+        const base = item.key.slice(6);
+        item.playKey = "compatible-v2/" + base + ".mp4";
+        item.compatible = true;
+        item.url = await sign(item.playKey);
+      }));
+
+
       // Trash/favorites are loaded only on the first page. This keeps subsequent page
       // requests focused on media metadata instead of repeating unrelated work.
       let trash = [], favs = [], storageBytes = 0;
