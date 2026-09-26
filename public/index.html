@@ -502,7 +502,7 @@ async function show(i){
     $("m").innerHTML=it.thumb?'<img src="'+it.thumb+'" alt="">':'<div class="vfail"><p>Loading photo…</p></div>';
   }else{
     const poster=it.thumb?' poster="'+it.thumb+'"':"";
-    $("m").innerHTML='<video'+poster+' controls playsinline preload="metadata"></video>';
+    $("m").innerHTML='<video'+poster+' controls playsinline preload="auto"></video>';
   }
   try{
     if(!it.url){
