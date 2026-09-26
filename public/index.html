@@ -556,7 +556,7 @@ $("m").ontouchstart = e => sx = e.touches[0].clientX;
 $("m").ontouchend = e => { const d = e.changedTouches[0].clientX - sx; if (Math.abs(d) > 60) show(idx + (d < 0 ? 1 : -1)); };
 $("del").onclick = async () => {
   if (!await ask("Move this memory to Recently deleted? It disappears for both of you and is kept for 30 days.")) return;
-  try { await act("delete", [items[idx].key]); close(); toast("Moved to Recently deleted"); await refresh(); } catch { toast("Couldn't delete. Try again."); }
+  try { await act("delete", [items[idx].key]); close(); toast("Moved to Recently deleted"); await refresh(); if (!$("timelineView").hidden) { renderDedicatedTimeline(); requestAnimationFrame(syncTimelinePosition); } } catch { toast("Couldn't delete. Try again."); }
 };
 
 function makeThumb(f) {
@@ -908,6 +908,10 @@ function paintFavs() {
     const it = items[+t.dataset.i], h = t.querySelector(".hv"); if (!it || !h) return;
     const on = favs.has(it.key); h.textContent = on ? "♥" : "♡"; h.classList.toggle("on", on);
   });
+  document.querySelectorAll("#timelineBody .timelineTile").forEach(t => {
+    const key = t.dataset.key, h = t.querySelector(".hv"); if (!h) return;
+    const on = favs.has(key); h.textContent = on ? "♥" : "♡"; h.classList.toggle("on", on);
+  });
   if (!$("v").hidden) favIcon();
   favLabel();
 }
@@ -931,8 +935,8 @@ $("refreshBtn").onclick=refreshData;
 $("share").onclick=shareCurrent;
 
 
-function openTimeline(){cat="all";apply();$("timelineView").hidden=false;setNavActive("timeline");renderDedicatedTimeline();$("timelineView").scrollTop=0;requestAnimationFrame(syncTimelinePosition);}
-function closeTimeline(){$("timelineView").hidden=true;setNavActive("home");cat="all";apply();scrollTo({top:0,behavior:"smooth"});}
+function openTimeline(){if(selecting)setSel(false);cat="all";apply();$("timelineView").hidden=false;setNavActive("timeline");renderDedicatedTimeline();$("timelineView").scrollTop=0;requestAnimationFrame(syncTimelinePosition);}
+function closeTimeline(){if(selecting)setSel(false);$("timelineView").hidden=true;setNavActive("home");cat="all";apply();scrollTo({top:0,behavior:"smooth"});}
 function renderDedicatedTimeline(){
 const data=all.filter(function(it){return it.timeline!=="other";}),byYear={};
 data.forEach(function(it){const d=new Date(it.date),y=d.getFullYear(),m=d.getMonth();if(!byYear[y])byYear[y]={};if(!byYear[y][m])byYear[y][m]=[];byYear[y][m].push(it);});
@@ -942,18 +946,28 @@ $("timelineYears").innerHTML=years.map(function(y,i){return "<button class=\"tim
 const active=years[0];
 $("timelineMonths").innerHTML=active==null?"":Array.from({length:12},function(_,i){const m=11-i;return "<button class=\"timelineMonth "+(byYear[active]&&byYear[active][m]?"":"empty")+"\" data-tm=\""+active+"-"+m+"\">"+mi(active,m)+"<br>"+mname(active,m)+"</button>";}).join("");
 let body="";
-years.forEach(function(y){body+="<section data-timeline-year=\""+y+"\"><h3 class=\"timelineYearTitle\">"+yi(y)+" "+y+"</h3>";for(let m=11;m>=0;m--){const list=(byYear[y]&&byYear[y][m]||[]).sort(function(a,b){return b.date-a.date;});if(!list.length)continue;body+="<div class=\"timelineMonthBlock\"><h4 class=\"timelineMonthTitle\" id=\"timeline-"+y+"-"+m+"\"><span>"+mi(y,m)+" "+mlong(y,m)+"</span><small>"+countLabel(list)+"</small></h4><div class=\"grid\">";list.forEach(function(it){const src=it.thumb||(it.type==="image"?it.url:""),key=String(it.key).replace(/&/g,"&amp;").replace(/"/g,"&quot;");body+="<button class=\"tile timelineTile\" data-key=\""+key+"\" aria-label=\"Open "+it.type+" from "+fmt(it.date)+"\">"+(src?"<img loading=\"lazy\" decoding=\"async\" src=\""+src+"\" alt=\"\">":"")+(it.type==="video"?"<b>▶</b>":"")+"<span class=\"dateBadge\">"+new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})+"</span><i class=\"hv"+(favs.has(it.key)?" on":"")+"\">"+(favs.has(it.key)?"♥":"♡")+"</i></button>";});body+="</div></div>";}body+="</section>";});
+years.forEach(function(y){body+="<section data-timeline-year=\""+y+"\"><h3 class=\"timelineYearTitle\">"+yi(y)+" "+y+"</h3>";for(let m=11;m>=0;m--){const list=(byYear[y]&&byYear[y][m]||[]).sort(function(a,b){return b.date-a.date;});if(!list.length)continue;body+="<div class=\"timelineMonthBlock\"><h4 class=\"timelineMonthTitle\" id=\"timeline-"+y+"-"+m+"\"><span>"+mi(y,m)+" "+mlong(y,m)+"</span><small>"+countLabel(list)+"</small></h4><div class=\"grid\">";list.forEach(function(it){const src=it.thumb||(it.type==="image"?it.url:""),key=String(it.key).replace(/&/g,"&amp;").replace(/"/g,"&quot;");body+="<button class=\"tile timelineTile"+(sel.has(it.key)?" sel":"")+"\" data-key=\""+key+"\" aria-label=\"Open "+it.type+" from "+fmt(it.date)+"\">"+(src?"<img loading=\"lazy\" decoding=\"async\" src=\""+src+"\" alt=\"\">":"")+(it.type==="video"?"<b>▶</b>":"")+"<span class=\"dateBadge\">"+new Date(it.date).toLocaleDateString(undefined,{month:"short",day:"numeric"})+"</span><i class=\"hv"+(favs.has(it.key)?" on":"")+"\">"+(favs.has(it.key)?"♥":"♡")+"</i><i class=\"ck\">✓</i></button>";});body+="</div></div>";}body+="</section>";});
 $("timelineBody").innerHTML=body||"<div class=\"timelineEmpty\">No dated memories yet.<br>Use <b>Others</b> for memories without a known date.</div>";
 if(!listDone)$("timelineBody").insertAdjacentHTML("beforeend","<button class=\"timelineLoad\" id=\"timelineLoad\">Load more memories</button>");
 $("timelineBody").insertAdjacentHTML("beforeend","<div class=\"timelineHint\">Timeline groups memories by the date stored with each file.</div>");
 }
 $("timelineClose").onclick=closeTimeline;
+$("timelineSelect").onclick=()=>setSel(!selecting);
+$("timelineSelectAll").onclick=()=>{
+  if (!selecting) return;
+  const timelineItems = all.filter(x => x.timeline !== "other");
+  const full = timelineItems.length && timelineItems.every(x => sel.has(x.key));
+  if (full) sel.clear(); else timelineItems.forEach(x => sel.add(x.key));
+  document.querySelectorAll("#timelineBody .timelineTile").forEach(t => t.classList.toggle("sel", sel.has(t.dataset.key)));
+  $("timelineSelectAll").textContent = full ? "Select all" : "Clear all";
+  selCount();
+};
 $("timelineYears").onclick=function(e){const b=e.target.closest("[data-ty]");if(!b)return;const y=+b.dataset.ty;document.querySelectorAll(".timelineYear").forEach(function(x){x.classList.toggle("on",+x.dataset.ty===y);});renderTimelineMonths(y);const t=document.querySelector('[data-timeline-year="'+y+'"]');if(t)t.scrollIntoView({behavior:"smooth",block:"start"});};
 function renderTimelineMonths(y,activeMonth){$("timelineMonths").innerHTML=Array.from({length:12},function(_,i){const m=11-i,has=all.some(function(it){const d=new Date(it.date);return it.timeline!=="other"&&d.getFullYear()===y&&d.getMonth()===m;});return '<button class="timelineMonth '+(has?"":"empty")+(activeMonth===m?" on":"")+'" data-tm="'+y+'-'+m+'">'+mi(y,m)+'<br>'+mname(y,m)+'</button>';}).join("");}
 function syncTimelinePosition(){if($("timelineView").hidden)return;const head=$("timelineView").querySelector(".timelineHead"),cutoff=head.getBoundingClientRect().bottom+18;let current=null;document.querySelectorAll("#timelineBody .timelineMonthTitle").forEach(function(el){if(el.getBoundingClientRect().top<=cutoff)current=el;});if(!current)return;const p=current.id.replace("timeline-","").split("-").map(Number),y=p[0],m=p[1];document.querySelectorAll("#timelineYears .timelineYear").forEach(function(x){x.classList.toggle("on",+x.dataset.ty===y);});renderTimelineMonths(y,m);}
 $("timelineMonths").onclick=function(e){const b=e.target.closest("[data-tm]");if(!b)return;const p=b.dataset.tm.split("-").map(Number),t=document.getElementById("timeline-"+p[0]+"-"+p[1]);renderTimelineMonths(p[0],p[1]);if(t)t.scrollIntoView({behavior:"smooth",block:"start"});};
 $("timelineView").addEventListener("scroll",function(){syncTimelinePosition();},{passive:true});
-$("timelineBody").onclick=function(e){if(e.target.id==="timelineLoad"){loadNextPage().then(renderDedicatedTimeline);return;}const hv=e.target.closest(".hv");if(hv){const key=hv.closest(".timelineTile").dataset.key;setFav([key],!favs.has(key));return;}const t=e.target.closest(".timelineTile");if(!t)return;const it=all.find(function(x){return x.key===t.dataset.key;});if(!it)return;items=all.filter(function(x){return x.timeline!=="other";});const i=items.findIndex(function(x){return x.key===it.key;});if(i>=0)show(i);};
+$("timelineBody").onclick=function(e){if(e.target.id==="timelineLoad"){loadNextPage().then(function(){renderDedicatedTimeline();requestAnimationFrame(syncTimelinePosition);});return;}const hv=e.target.closest(".hv");if(hv){const key=hv.closest(".timelineTile").dataset.key;setFav([key],!favs.has(key));return;}const t=e.target.closest(".timelineTile");if(!t)return;const it=all.find(function(x){return x.key===t.dataset.key;});if(!it)return;if(selecting){sel.has(it.key)?sel.delete(it.key):sel.add(it.key);t.classList.toggle("sel",sel.has(it.key));selCount();return;}items=all.filter(function(x){return x.timeline!=="other";});const i=items.findIndex(function(x){return x.key===it.key;});if(i>=0)show(i);};
 function setNavActive(name){ document.querySelectorAll("#appnav button").forEach(b=>b.classList.toggle("on",b.dataset.nav===name)); }
 $("appnav").onclick=async e=>{
   const b=e.target.closest("button[data-nav]"); if(!b) return;
