@@ -161,7 +161,7 @@ header h1{font-size:30px;letter-spacing:.1px}
 <body>
 <div class="bg" aria-hidden="true"><i></i><i></i><i></i></div>
 <header><h1 id="t">Us</h1><p id="sub"></p><span id="n"></span><span id="storage"></span></header>
-<div id="top"><div class="seg" id="seg"><button data-c="image" class="on">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><nav id="tl" aria-label="Timeline"></nav><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div></div></div>
+<div id="top"><div class="seg" id="seg"><button data-c="image">Photos <small id="cp"></small></button><button data-c="video">Videos <small id="cv"></small></button></div><div class="tools"><button id="allBtn">All</button><button id="selBtn">Select</button><button id="themeBtn" class="icon" aria-label="Theme" title="Theme">◐</button><button id="refreshBtn" class="icon" aria-label="Refresh" title="Refresh">↻</button></div></div></div>
 <nav class="appnav" id="appnav" aria-label="Main navigation">
   <button data-nav="home" class="on"><b>⌂</b><span>Home</span></button>
   <button data-nav="fav"><b>♥</b><span>Favorites</span></button>
@@ -169,7 +169,7 @@ header h1{font-size:30px;letter-spacing:.1px}
   <button data-nav="other"><b>▣</b><span>Others</span></button>
   <button data-nav="trash"><b>⌫</b><span>Deleted</span></button>
 </nav>
-<div id="st"></div><div id="homehint" class="homehint">Your memories are organized automatically by year and month.</div><div class="timelineView" id="timelineView" hidden><div class="timelineHead"><div class="timelineHeadRow"><div><h2>Timeline</h2><p id="timelineSummary">Your memories, year by year.</p></div><div class="timelineHeadActions"><button class="timelineSelect" id="timelineSelect">Select</button><button class="timelineSelectAll" id="timelineSelectAll" hidden>Select all</button><button class="timelineClose" id="timelineClose" aria-label="Close Timeline">✕</button></div></div><div class="timelineYears" id="timelineYears"></div><div class="timelineMonths" id="timelineMonths"></div></div><div class="timelineBody" id="timelineBody"></div></div>
+<div id="st"></div><div id="homehint" class="homehint">Newest memories first. Use Timeline to browse by year and month.</div><div class="timelineView" id="timelineView" hidden><div class="timelineHead"><div class="timelineHeadRow"><div><h2>Timeline</h2><p id="timelineSummary">Your memories, year by year.</p></div><div class="timelineHeadActions"><button class="timelineSelect" id="timelineSelect">Select</button><button class="timelineSelectAll" id="timelineSelectAll" hidden>Select all</button><button class="timelineClose" id="timelineClose" aria-label="Close Timeline">✕</button></div></div><div class="timelineYears" id="timelineYears"></div><div class="timelineMonths" id="timelineMonths"></div></div><div class="timelineBody" id="timelineBody"></div></div>
 <main id="g"></main>
 <label class="fab" aria-label="Add photos or videos">＋<input id="f" type="file" multiple accept="image/*,video/*" hidden></label>
 <div class="lock" id="out" hidden>
@@ -314,127 +314,18 @@ const yi = y => ICONS[(y * 11 + 2) % ICONS.length];
 const mname = (y, m, long) => new Date(y, m, 1).toLocaleDateString(undefined, long ? { month: "long", year: "numeric" } : { month: "short" });
 const mlong = (y, m) => new Date(y, m, 1).toLocaleDateString(undefined, { month: "long" });
 
-let calendarCache = null;
-function buildCalendar() {
-  const ys={}, ms={}, stats={};
-  for (const it of items) {
-    if (it.timeline === "other") continue;
-    const d=new Date(it.date), y=d.getFullYear(), m=d.getMonth();
-    (ys[y]=ys[y]||{})[m]=(ys[y][m]||0)+1;
-    const st=stats[y] || (stats[y]={photos:0,videos:0});
-    if (it.type === "video") st.videos++; else st.photos++;
-  }
-  if(cat!=="fav"&&cat!=="all"&&cat!=="other") for(let y=RANGE.from[0];y<=RANGE.to[0];y++) for(let m=y===RANGE.from[0]?RANGE.from[1]:0;m<=(y===RANGE.to[0]?RANGE.to[1]:11);m++)(ms[y]=ms[y]||new Set()).add(m);
-  Object.keys(ys).forEach(y=>Object.keys(ys[y]).forEach(m=>(ms[y]=ms[y]||new Set()).add(+m)));
-  return {ys,ms,stats};
-}
-function calendar() {
-  if (!calendarCache) calendarCache = buildCalendar();
-  return calendarCache;
-}
-const countLabel=list=>{const p=list.filter(i=>i.type==="image").length,v=list.filter(i=>i.type==="video").length;return [p&&`(${p} ${p===1?"photo":"photos"})`,v&&`(${v} ${v===1?"video":"videos"})`].filter(Boolean).join(", ");};
-
 let renderLimit = 300;
 function draw() {
   $("n").textContent=all.length+(all.length===1?" memory":" memories");
-  const {ms,stats}=calendar(),what=cat==="video"?"videos":cat==="fav"?"favorites":cat==="all"?"memories":cat==="other"?"other memories":"photos";
-  const by={},other=[];
-  items.forEach((it,i)=>{if(i>=renderLimit)return;if(it.timeline==="other") other.push(i); else {const d=new Date(it.date),k=d.getFullYear()+"-"+d.getMonth();(by[k]=by[k]||[]).push(i);}});
-  const visibleCount=Math.min(renderLimit,items.length);
-  let h=visibleCount?"":(cat==="fav"?`<p class="empty">No favorites yet. Tap the ♡ on any photo or video.</p>`:cat==="all"?`<p class="empty">Nothing here yet. Tap + to add photos and videos.</p>`:`<p class="empty">No ${what} yet. Tap + to add some.</p>`);
-  Object.keys(ms).sort((a,b)=>b-a).forEach(y=>{
-    const st=stats[y] || {photos:0,videos:0};
-    const yearLabel=[st.photos&&`(${st.photos} ${st.photos===1?"photo":"photos"})`,st.videos&&`(${st.videos} ${st.videos===1?"video":"videos"})`].filter(Boolean).join(", ");
-    h+=`<h3 class="yr" id="y-${y}">${yi(+y)} ${y} <small>${yearLabel}</small></h3>`;
-    [...ms[y]].sort((a,b)=>b-a).forEach(m=>{
-      const list=by[y+"-"+m]||[],label=countLabel(list.map(i=>items[i]));
-      h+=`<h2 id="m-${y}-${m}">${mi(+y,m)} ${mlong(+y,m)}${label?` <small>${label}</small>`:""}</h2>`;
-      if(!list.length) h+=`<p class="none">No ${what} yet</p>`;
-      else if(sortMode==="moments"){
-        const days={};
-        [...list].sort((a,b)=>items[a].date-items[b].date).forEach(i=>{const d=new Date(items[i].date),k=`${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;(days[k]=days[k]||[]).push(i);});
-        Object.keys(days).sort((a,b)=>new Date(a)-new Date(b)).forEach(k=>{const d=new Date(k),label=d.toLocaleDateString(undefined,{weekday:"short",month:"short",day:"numeric"});h+=`<div class="momentHead">${label}<small>${countLabel(days[k].map(i=>items[i]))}</small></div><div class="grid">${days[k].map(tile).join("")}</div>`;});
-      } else h+=`<div class="grid">${list.map(tile).join("")}</div>`;
-    });
-  });
-  if(other.length){const oi=other.map(i=>items[i]);h+=`<h3 class="otherHead" id="other-section">📦 Others <small>${countLabel(oi)}</small></h3><div class="grid">${other.map(tile).join("")}</div>`;}
-  if(renderLimit < items.length) h+=`<div id="loadMoreSentinel" style="height:1px;margin:1px 0" aria-hidden="true"></div>`;
-  $("g").innerHTML=h; timeline(); spy(); armLazyMedia($("g")); observeMore();
+  const what=cat==="video"?"videos":cat==="fav"?"favorites":cat==="other"?"other memories":"memories";
+  const visible=items.slice(0,renderLimit);
+  let h=visible.length?'':'<p class="empty">'+(cat==="fav"?"No favorites yet. Tap the ♡ on any photo or video.":cat==="other"?"No other memories yet.":'Nothing here yet. Tap + to add photos and videos.')+"</p>";
+  if(visible.length)h+='<div class="grid">'+visible.map(function(it,i){return tile(i);}).join("")+'</div>';
+  if(renderLimit<items.length)h+='<div id="loadMoreSentinel" style="height:1px;margin:1px 0" aria-hidden="true"></div>';
+  $("g").innerHTML=h;
+  armLazyMedia($("g"));
+  observeMore();
 }
-
-function timeline() {
-  const { ys, stats } = calendar();
-  const years = Object.keys(ys).sort((a, b) => b - a);
-  if (!years.length) { $("tl").innerHTML = ""; return; }
-  if (!ys[selY]) selY = +years[0];
-  const n = y => {
-    const st = stats[y] || { photos: 0, videos: 0 };
-    return (st.photos || 0) + (st.videos || 0);
-  };
-  const months = Array.from({ length: 12 }, (_, m) => m);
-  $("tl").innerHTML = `<div class="chips">${years.map(y => `<button class="chip ${y == selY ? "on" : ""}" data-y="${y}">${yi(+y)} ${y}${n(y) ? ` <small>${n(y)}</small>` : ""}</button>`).join("")}</div>` +
-    `<div class="chips mo">${months.map(m => `<button class="chip ${currentMonth === m ? "on" : ""} ${ys[selY]?.[m] ? "" : "empty"}" data-m="${selY}-${m}">${mi(selY, m)} ${mname(selY, m)}</button>`).join("")}</div>`;
-}
-async function revealTimelineTarget(y, m) {
-  while (true) {
-    const target = items.findIndex(it => {
-      if (it.timeline === "other") return false;
-      const d = new Date(it.date);
-      return d.getFullYear() === y && (m == null || d.getMonth() === m);
-    });
-    if (target >= 0) {
-      if (target >= renderLimit) {
-        renderLimit = Math.min(items.length, Math.max(renderLimit + 300, target + 1));
-        draw();
-      }
-      return true;
-    }
-    if (listDone) return false;
-    await loadNextPage();
-  }
-}
-const satPx = () => parseFloat(getComputedStyle($("top")).top) || 0; // how far the pinned bar sits below the top edge
-function spy() {
-  let c = null;
-  for (const h of document.querySelectorAll("h2[id]")) { if (h.getBoundingClientRect().top <= 275 + satPx()) c = h; else break; }
-  if (!c) c = document.querySelector("h2[id]");
-  if (!c) return;
-  const [, y, m] = c.id.split("-");
-  if (+y !== selY) { selY = +y; timeline(); }
-  currentMonth = +m;
-  document.querySelectorAll("[data-m]").forEach(b => b.classList.toggle("on", b.dataset.m === y + "-" + m));
-}
-addEventListener("scroll", spy, { passive: true });
-$("tl").onclick = async e => {
-  const b = e.target.closest(".chip"); if (!b) return;
-  const what = cat === "video" ? "videos" : "photos";
-  if (b.dataset.y) {
-    selY = +b.dataset.y;
-    const first = Object.keys(calendar().ys[selY] || {}).map(Number).sort((a, b) => a - b)[0];
-    currentMonth = first ?? null;
-    timeline();
-    if (!(await revealTimelineTarget(selY, currentMonth))) {
-      toast(`No ${what} in ${selY} yet`);
-      return;
-    }
-    requestAnimationFrame(() => {
-      const t = document.getElementById("y-" + selY);
-      if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
-  else if (b.dataset.m) {
-    const [y, m] = b.dataset.m.split("-").map(Number);
-    selY = y; currentMonth = m; timeline();
-    if (!(await revealTimelineTarget(y, m))) {
-      toast(`No ${what} in ${mname(y, m, true)} yet`);
-      return;
-    }
-    requestAnimationFrame(() => {
-      const t = document.getElementById("m-" + b.dataset.m);
-      if (t) t.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
-  }
-};
 async function shareCurrent(){
   const it=items[idx]; if(!it) return;
   const text=`Our memory — ${fmt(it.date,{day:"numeric",month:"long",year:"numeric"})}`;
@@ -589,16 +480,6 @@ $("g").addEventListener("error", async e => {
 $("g").onclick = e => {
   const hv = e.target.closest(".hv");
   if (hv) { const k = items[+hv.closest(".tile").dataset.i].key; setFav([k], !favs.has(k)); return; }
-  const h = e.target.closest("h2[id]");
-  if (h && selecting) { // tapping a month heading selects or clears that whole month
-    const g = h.nextElementSibling;
-    if (g && g.classList.contains("grid")) {
-      const ts = [...g.querySelectorAll(".tile")], full = ts.every(x => sel.has(items[+x.dataset.i].key));
-      ts.forEach(x => { const k = items[+x.dataset.i].key; full ? sel.delete(k) : sel.add(k); x.classList.toggle("sel", !full); });
-      selCount();
-    }
-    return;
-  }
   const t = e.target.closest(".tile"); if (!t) return;
   const it = items[+t.dataset.i];
   if (selecting) { sel.has(it.key) ? sel.delete(it.key) : sel.add(it.key); t.classList.toggle("sel", sel.has(it.key)); selCount(); }
@@ -828,7 +709,7 @@ async function upload(files, when) {
     toast(`${failed.length} file${failed.length > 1 ? "s" : ""} couldn't upload`);
   } else toast(files.length === 1 ? "Added to your album" : `Added ${files.length} memories`);
   await load();
-  if (when) { selY = when.y; timeline(); const t = document.getElementById(`m-${when.y}-${when.m}`); if (t) t.scrollIntoView({ behavior: "smooth" }); }
+  if (when) { openTimeline(); requestAnimationFrame(() => { const t = document.getElementById(`timeline-${when.y}-${when.m}`); if (t) t.scrollIntoView({ behavior: "smooth", block: "start" }); }); }
 }
 // Select mode, Recently deleted, and confirmations
 let selecting = false, trashItems = [];
