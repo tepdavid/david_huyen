@@ -212,7 +212,10 @@ module.exports = async (req, res) => {
         const expected = mac(exp, String(user.id));
         good = crypto.timingSafeEqual(Buffer.from(sig, "hex"), Buffer.from(expected, "hex"));
       }
-    } else good = true;
+    } else {
+      // Never allow browser access without an explicitly configured four-digit passcode.
+      return res.status(503).json({ error: "browser_password_not_configured", reason: "setup_required" });
+    }
     if (!good) return res.status(401).json({ error: "locked", reason: "locked" });
 
     if (req.query.action === "check") { // reports which settings are missing and whether storage is reachable
@@ -362,10 +365,10 @@ module.exports = async (req, res) => {
       const key = String(b.key || "");
       const requestedPlayKey = String(b.playKey || "");
       const base = key.slice(6);
-      const validMedia = key.startsWith("media/") && /^[\\w.-]+$/.test(base);
+      const validMedia = key.startsWith("media/") && /^[\w.-]+$/.test(base);
       const validPlay = !requestedPlayKey || requestedPlayKey === key || requestedPlayKey === "compatible-v2/" + base + ".mp4" || requestedPlayKey === "compatible/" + base + ".mp4";
       if (!validMedia || !validPlay) return res.status(400).json({ error: "bad key" });
-      const type = /\\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image";
+      const type = /\.(mp4|mov|m4v|webm|3gp|mkv|avi|mpe?g)$/i.test(base) ? "video" : "image";
       if (type === "image") return res.json({ url: await sign(key), sourceUrl: null });
       let playKey = key;
       let compatible = false;
