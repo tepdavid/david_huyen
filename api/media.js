@@ -332,7 +332,8 @@ module.exports = async (req, res) => {
           }
         }
 
-        const now = Date.now(), stale = [], staleBases = [];
+        if (b.includeTrash !== false) {
+          const now = Date.now(), stale = [], staleBases = [];
         let trashCursor;
         do {
           const trashPage = await s3.send(new ListObjectsV2Command({
@@ -361,6 +362,7 @@ module.exports = async (req, res) => {
         for (let i = 0; i < stale.length; i += 500) await s3.send(new DeleteObjectsCommand({ Bucket, Delete: { Objects: stale.slice(i, i + 500).map(Key => ({ Key })) } }));
         if (staleBases.length) await dropFavs(staleBases).catch(() => {});
         trash.sort((x, y) => y.deletedAt - x.deletedAt);
+        }
         favs = await getFavs().catch(() => []);
       }
 
